@@ -9,6 +9,13 @@ use super::{
     trail::TrailEntry,
 };
 
+#[derive(Debug)]
+pub enum MachineError {
+    RegisterOutOfBounds(usize),
+    UnificationFailed(String),
+    EnvironmentMissing,
+}
+
 // The abstract machine structure.
 #[derive(Debug)]
 pub struct Machine {
@@ -52,6 +59,24 @@ impl Machine {
         }
     }
 
+    // Returns true if `var` occurs anywhere inside `term`.
+    fn occurs_check(&self, var: &String, term: &Term) -> bool {
+        match term {
+            Term::Var(name) => name == var,
+            Term::Const(_) => false,
+            Term::Compound(_, args) => args.iter().any(|arg| self.occurs_check(var, arg)),
+            Term::Lambda(param, body) => {
+                // If the lambda binds the same variable, no free occurrence is possible.
+                if param == var {
+                    false
+                } else {
+                    self.occurs_check(var, body)
+                }
+            },
+            Term::App(fun, arg) => self.occurs_check(var, fun) || self.occurs_check(var, arg),
+        }
+    }
+
     // Registers an indexed clause for the given predicate.
     // The clause is associated with a key (typically the value of the first argument).
     pub fn register_indexed_clause(&mut self, predicate: String, key: Term, address: usize) {
@@ -84,7 +109,7 @@ impl Machine {
     }
 
     // Unify two terms.
-    ///
+    //
     // If one term is an unbound variable, bind it to the other.
     // If both are constants, they must be equal.
     pub fn unify(&mut self, t1: &Term, t2: &Term) -> bool {
@@ -92,17 +117,23 @@ impl Machine {
         let term2 = self.resolve(t2);
         match (term1, term2) {
             (Term::Const(a), Term::Const(b)) => a == b,
-            (Term::Var(name), other) => {
-                // Record the old binding on the trail.
-                let prev = self.substitution.get(&name).cloned();
+            (Term::Var(ref name), ref other) => {
+                // Add occurs-check here:
+                if self.occurs_check(name, other) {
+                    return false;
+                }
+                let prev = self.substitution.get(name).cloned();
                 self.trail.push(TrailEntry { variable: name.clone(), previous_value: prev });
-                self.substitution.insert(name, other);
+                self.substitution.insert(name.clone(), other.clone());
                 true
             }
-            (other, Term::Var(name)) => {
-                let prev = self.substitution.get(&name).cloned();
+            (ref other, Term::Var(ref name)) => {
+                if self.occurs_check(name, other) {
+                    return false;
+                }
+                let prev = self.substitution.get(name).cloned();
                 self.trail.push(TrailEntry { variable: name.clone(), previous_value: prev });
-                self.substitution.insert(name, other);
+                self.substitution.insert(name.clone(), other.clone());
                 true
             }
             (Term::Compound(functor1, args1), Term::Compound(functor2, args2)) => {
@@ -120,6 +151,7 @@ impl Machine {
             _ => false,
         }
     }
+    
 
     // Execute one instruction.
     //
