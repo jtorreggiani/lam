@@ -414,9 +414,14 @@ impl Machine {
                 }
             },
             Instruction::Cut => {
+                // The behavior of cut can be subtle. In some systems, a cut not
+                // only prevents backtracking but also causes the current predicate
+                // to fail if no alternative is available. In our simple model,
+                // we're using cut solely to clear the choice stack. You may refine
+                // the semantics of cut later as needed.
                 self.choice_stack.clear();
                 println!("Cut executed: cleared all choice points.");
-            },          
+            },
             Instruction::BuildCompound { target, functor, arg_registers } => {
                 let mut args = Vec::new();
                 for &reg in arg_registers.iter() {
