@@ -39,6 +39,12 @@ pub struct ChoicePoint {
     pub saved_substitution: HashMap<String, Term>,
 }
 
+#[derive(Debug, Clone)]
+pub struct TrailEntry {
+    pub variable: String,
+    pub previous_value: Option<Term>,
+}
+
 /// The abstract machine structure.
 #[derive(Debug)]
 pub struct Machine {
@@ -56,6 +62,8 @@ pub struct Machine {
     pub predicate_table: HashMap<String, usize>,
     /// A stack to hold choice points for backtracking.
     pub choice_stack: Vec<ChoicePoint>,
+    /// A trail to record variable bindings (for backtracking).
+    pub trail: Vec<TrailEntry>,
 }
 
 impl Machine {
@@ -69,6 +77,7 @@ impl Machine {
             control_stack: Vec::new(),
             predicate_table: HashMap::new(),
             choice_stack: Vec::new(),
+            trail: Vec::new(), 
         }
     }
 
