@@ -14,6 +14,18 @@ pub enum Instruction {
     GetConst { register: usize, value: i32 },
     /// Unifies the term in the register with a variable.
     GetVar { register: usize, name: String },
+    /// **New:** Call a predicate.
+    /// `jump_to` is where the predicate's code starts.
+    /// `return_pc` is where to resume after the predicate finishes.
+    Call { predicate: String, jump_to: usize, return_pc: usize },
+    /// **New:** Proceed (return from a predicate).
+    Proceed,
+}
+
+/// A frame to store return information for a predicate call.
+#[derive(Debug, Clone)]
+pub struct Frame {
+    pub return_pc: usize,
 }
 
 /// The abstract machine structure.
@@ -27,6 +39,8 @@ pub struct Machine {
     pub pc: usize,
     /// Substitution environment mapping variable names to Terms.
     pub substitution: HashMap<String, Term>,
+    /// **New:** A control stack to hold frames for predicate calls.
+    pub control_stack: Vec<Frame>,
 }
 
 impl Machine {
@@ -37,6 +51,7 @@ impl Machine {
             code,
             pc: 0,
             substitution: HashMap::new(),
+            control_stack: Vec::new(),
         }
     }
 
@@ -60,40 +75,39 @@ impl Machine {
     /// If one term is a variable that is not bound, bind it to the other.
     /// If both are constants, they must be equal.
     pub fn unify(&mut self, t1: &Term, t2: &Term) -> bool {
-      let term1 = self.resolve(t1);
-      let term2 = self.resolve(t2);
-      match (term1, term2) {
-          // Both are constants: they must be equal.
-          (Term::Const(a), Term::Const(b)) => a == b,
-          // If the first term is a variable, bind it.
-          (Term::Var(name), other) => {
-              self.substitution.insert(name, other);
-              true
-          }
-          // If the second term is a variable, bind it.
-          (other, Term::Var(name)) => {
-              self.substitution.insert(name, other);
-              true
-          }
-          // If both are compound terms, check functor and arity.
-          (Term::Compound(functor1, args1), Term::Compound(functor2, args2)) => {
-              if functor1 == functor2 && args1.len() == args2.len() {
-                  // Unify each pair of corresponding subterms.
-                  for (a, b) in args1.iter().zip(args2.iter()) {
-                      if !self.unify(a, b) {
-                          return false;
-                      }
-                  }
-                  true
-              } else {
-                  false
-              }
-          }
-          // Any other combination fails unification.
-          _ => false,
-      }
-  }
-  
+        let term1 = self.resolve(t1);
+        let term2 = self.resolve(t2);
+        match (term1, term2) {
+            // Both are constants: they must be equal.
+            (Term::Const(a), Term::Const(b)) => a == b,
+            // If the first term is a variable, bind it.
+            (Term::Var(name), other) => {
+                self.substitution.insert(name, other);
+                true
+            }
+            // If the second term is a variable, bind it.
+            (other, Term::Var(name)) => {
+                self.substitution.insert(name, other);
+                true
+            }
+            // If both are compound terms, check functor and arity.
+            (Term::Compound(functor1, args1), Term::Compound(functor2, args2)) => {
+                if functor1 == functor2 && args1.len() == args2.len() {
+                    // Unify each pair of corresponding subterms.
+                    for (a, b) in args1.iter().zip(args2.iter()) {
+                        if !self.unify(a, b) {
+                            return false;
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            // Any other combination fails unification.
+            _ => false,
+        }
+    }
 
     /// Execute one instruction.
     ///
@@ -140,8 +154,7 @@ impl Machine {
                 if register < self.registers.len() {
                     if let Some(term) = self.registers[register].clone() {
                         let goal = Term::Var(name);
-                        // **Note:** Reverse the order of arguments so that the new variable (goal)
-                        // is bound to the stored value.
+                        // Reverse the order so that the new variable (goal) is bound to the stored value.
                         if !self.unify(&goal, &term) {
                             eprintln!(
                                 "Unification failed: cannot unify {:?} with {:?}",
@@ -153,6 +166,21 @@ impl Machine {
                     }
                 } else {
                     eprintln!("Error: Register {} out of bounds", register);
+                }
+            }
+            // **New:** Handle the Call instruction.
+            Instruction::Call { predicate, jump_to, return_pc } => {
+                self.control_stack.push(Frame { return_pc });
+                println!("Calling predicate: {}", predicate);
+                self.pc = jump_to;
+            }
+            // **New:** Handle the Proceed instruction.
+            Instruction::Proceed => {
+                if let Some(frame) = self.control_stack.pop() {
+                    self.pc = frame.return_pc;
+                    println!("Proceed: returning to pc = {}", self.pc);
+                } else {
+                    println!("Proceed: no frame to return to, finishing execution.");
                 }
             }
         }

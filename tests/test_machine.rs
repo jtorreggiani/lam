@@ -104,3 +104,41 @@ fn test_get_var_unification() {
     let binding = machine.substitution.get("Y").cloned();
     assert_eq!(binding, Some(Term::Var("X".to_string())));
 }
+
+#[test]
+fn test_call_and_proceed() {
+    // We construct a program with 6 instructions arranged as follows:
+    //
+    // 0: PutConst   reg0, 10         ; Main code: set reg0 to 10.
+    // 1: Call       predicate "dummy_pred", jump_to = 3, return_pc = 5 
+    //      - This simulates calling a predicate.
+    // 2: (This slot is not executed because main continuation is after the predicate block.)
+    // 3: PutConst   reg1, 20         ; Predicate code: set reg1 to 20.
+    // 4: Proceed                     ; End of predicate: return to main.
+    // 5: PutConst   reg2, 30         ; Main continuation: set reg2 to 30.
+    let code = vec![
+        Instruction::PutConst { register: 0, value: 10 },
+        Instruction::Call { 
+            predicate: "dummy_pred".to_string(), 
+            jump_to: 3, 
+            return_pc: 5 
+        },
+        // Instruction at index 2 is not used in this test.
+        Instruction::PutConst { register: 99, value: 0 }, // dummy instruction (won't execute)
+        Instruction::PutConst { register: 1, value: 20 },
+        Instruction::Proceed,
+        Instruction::PutConst { register: 2, value: 30 },
+    ];
+    let mut machine = Machine::new(3, code);
+    
+    // Run the entire program.
+    machine.run();
+    
+    // Check expected register values.
+    assert_eq!(machine.registers[0], Some(Term::Const(10)));
+    assert_eq!(machine.registers[1], Some(Term::Const(20)));
+    assert_eq!(machine.registers[2], Some(Term::Const(30)));
+    
+    // The control stack should be empty at the end.
+    assert_eq!(machine.control_stack.len(), 0);
+}
