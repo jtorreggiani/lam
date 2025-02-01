@@ -60,20 +60,40 @@ impl Machine {
     /// If one term is a variable that is not bound, bind it to the other.
     /// If both are constants, they must be equal.
     pub fn unify(&mut self, t1: &Term, t2: &Term) -> bool {
-        let term1 = self.resolve(t1);
-        let term2 = self.resolve(t2);
-        match (term1, term2) {
-            (Term::Const(a), Term::Const(b)) => a == b,
-            (Term::Var(name), other) => {
-                self.substitution.insert(name, other);
-                true
-            }
-            (other, Term::Var(name)) => {
-                self.substitution.insert(name, other);
-                true
-            }
-        }
-    }
+      let term1 = self.resolve(t1);
+      let term2 = self.resolve(t2);
+      match (term1, term2) {
+          // Both are constants: they must be equal.
+          (Term::Const(a), Term::Const(b)) => a == b,
+          // If the first term is a variable, bind it.
+          (Term::Var(name), other) => {
+              self.substitution.insert(name, other);
+              true
+          }
+          // If the second term is a variable, bind it.
+          (other, Term::Var(name)) => {
+              self.substitution.insert(name, other);
+              true
+          }
+          // If both are compound terms, check functor and arity.
+          (Term::Compound(functor1, args1), Term::Compound(functor2, args2)) => {
+              if functor1 == functor2 && args1.len() == args2.len() {
+                  // Unify each pair of corresponding subterms.
+                  for (a, b) in args1.iter().zip(args2.iter()) {
+                      if !self.unify(a, b) {
+                          return false;
+                      }
+                  }
+                  true
+              } else {
+                  false
+              }
+          }
+          // Any other combination fails unification.
+          _ => false,
+      }
+  }
+  
 
     /// Execute one instruction.
     ///
