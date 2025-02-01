@@ -7,7 +7,7 @@ use super::{
     trail::TrailEntry,
 };
 
-/// The abstract machine structure.
+// The abstract machine structure.
 #[derive(Debug)]
 pub struct Machine {
     // Registers: each can hold an optional Term.
@@ -28,10 +28,13 @@ pub struct Machine {
     pub trail: Vec<TrailEntry>,
     // A stack of environment frames for local variables.
     pub environment_stack: Vec<Vec<Option<Term>>>,
+    // Index table mapping predicate names to an index mapping.
+    // For each predicate, the key is a Term (the index value) and the value is a vector of clause addresses.
+    pub index_table: HashMap<String, HashMap<Term, Vec<usize>>>,
 }
 
 impl Machine {
-    /// Create a new machine with a specified number of registers and given code.
+    // Create a new machine with a specified number of registers and given code.
     pub fn new(num_registers: usize, code: Vec<Instruction>) -> Self {
         Self {
             registers: vec![None; num_registers],
@@ -43,11 +46,19 @@ impl Machine {
             choice_stack: Vec::new(),
             trail: Vec::new(),
             environment_stack: Vec::new(),
+            index_table: HashMap::new(),
         }
     }
 
-    /// Registers a clause for the given predicate name.
-    /// Each call to this function adds one clause address.
+    // Registers an indexed clause for the given predicate.
+    // The clause is associated with a key (typically the value of the first argument).
+    pub fn register_indexed_clause(&mut self, predicate: String, key: Term, address: usize) {
+        let entry = self.index_table.entry(predicate).or_insert_with(HashMap::new);
+        entry.entry(key).or_insert_with(Vec::new).push(address);
+    }
+
+    // Registers a clause for the given predicate name.
+    // Each call to this function adds one clause address.
     pub fn register_predicate(&mut self, name: String, address: usize) {
         self.predicate_table
             .entry(name)
@@ -55,7 +66,7 @@ impl Machine {
             .push(address);
     }
 
-    /// Resolve a term to its current bound value, if any.
+    // Resolve a term to its current bound value, if any.
     fn resolve(&self, term: &Term) -> Term {
         match term {
             Term::Var(name) => {
@@ -70,10 +81,10 @@ impl Machine {
         }
     }
 
-    /// Unify two terms.
+    // Unify two terms.
     ///
-    /// If one term is an unbound variable, bind it to the other.
-    /// If both are constants, they must be equal.
+    // If one term is an unbound variable, bind it to the other.
+    // If both are constants, they must be equal.
     pub fn unify(&mut self, t1: &Term, t2: &Term) -> bool {
         let term1 = self.resolve(t1);
         let term2 = self.resolve(t2);
@@ -108,9 +119,9 @@ impl Machine {
         }
     }
 
-    /// Execute one instruction.
+    // Execute one instruction.
     ///
-    /// Returns `false` if there are no more instructions or a failure terminates execution.
+    // Returns `false` if there are no more instructions or a failure terminates execution.
     pub fn step(&mut self) -> bool {
         if self.pc >= self.code.len() {
             return false;
@@ -302,6 +313,45 @@ impl Machine {
                     eprintln!("Error: Register {} out of bounds", register);
                 }
             },
+            Instruction::IndexedCall { predicate, index_register } => {
+                // Retrieve the key from the specified register.
+                if index_register >= self.registers.len() {
+                    eprintln!("IndexedCall failed: register {} out of bounds", index_register);
+                } else if let Some(key_term) = self.registers[index_register].clone() {
+                    // Look up the index table for this predicate.
+                    if let Some(index_map) = self.index_table.get(&predicate) {
+                        if let Some(clauses) = index_map.get(&key_term) {
+                            if !clauses.is_empty() {
+                                let mut alternatives = clauses.clone();
+                                let jump_to = alternatives.remove(0);
+                                let alternative_clauses = if alternatives.is_empty() {
+                                    None
+                                } else {
+                                    Some(alternatives)
+                                };
+                                let cp = ChoicePoint {
+                                    saved_pc: self.pc,
+                                    saved_registers: self.registers.clone(),
+                                    saved_substitution: self.substitution.clone(),
+                                    saved_trail_len: self.trail.len(),
+                                    alternative_clauses,
+                                };
+                                self.choice_stack.push(cp);
+                                println!("IndexedCall: predicate {} with key {:?} jumping to clause at address {}", predicate, key_term, jump_to);
+                                self.pc = jump_to;
+                            } else {
+                                eprintln!("IndexedCall failed: no clauses for predicate {} with key {:?}", predicate, key_term);
+                            }
+                        } else {
+                            eprintln!("IndexedCall: no index entry for predicate {} with key {:?}", predicate, key_term);
+                        }
+                    } else {
+                        eprintln!("IndexedCall failed: predicate {} not found in index table", predicate);
+                    }
+                } else {
+                    eprintln!("IndexedCall failed: register {} is uninitialized", index_register);
+                }
+            },
             Instruction::TailCall { predicate } => {
                 if let Some(_) = self.environment_stack.pop() {
                     println!("TailCall: deallocated current environment frame.");
@@ -359,7 +409,7 @@ impl Machine {
         true
     }
 
-    /// Run the machine until no more instructions are available.
+    // Run the machine until no more instructions are available.
     pub fn run(&mut self) {
         while self.step() {}
     }

@@ -1,5 +1,5 @@
 // Represents a term in our logic programming language.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum Term {
     // A constant value (for example, a 32‐bit integer).
     Const(i32),

@@ -30,4 +30,6 @@ pub enum Instruction {
     GetLocal { index: usize, register: usize },
     // TailCall — a tail-recursive call to a predicate.
     TailCall { predicate: String },
+    // IndexedCall uses the content of the specified register as an index key.
+    IndexedCall { predicate: String, index_register: usize },
 }
