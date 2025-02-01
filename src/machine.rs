@@ -3,7 +3,7 @@
 use crate::term::Term;
 use std::collections::HashMap;
 
-/// A minimal set of instructions for our abstract machine.
+/// The set of instructions for our abstract machine.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Instruction {
     /// Puts a constant in a register.
@@ -14,16 +14,29 @@ pub enum Instruction {
     GetConst { register: usize, value: i32 },
     /// Unifies the term in the register with a variable.
     GetVar { register: usize, name: String },
-    /// Call a predicate (allow lookup by name).
+    /// Calls a predicate by name.
     Call { predicate: String },
-    /// **New:** Proceed (return from a predicate).
+    /// Proceeds (returns) from the current predicate.
     Proceed,
+    /// Creates a choice point (for backtracking).
+    Choice,
+    /// Fails and triggers backtracking.
+    Fail,
 }
 
 /// A frame to store return information for a predicate call.
 #[derive(Debug, Clone)]
 pub struct Frame {
     pub return_pc: usize,
+}
+
+/// A choice point to support backtracking.
+/// Saves the program counter, registers, and substitution environment.
+#[derive(Debug, Clone)]
+pub struct ChoicePoint {
+    pub saved_pc: usize,
+    pub saved_registers: Vec<Option<Term>>,
+    pub saved_substitution: HashMap<String, Term>,
 }
 
 /// The abstract machine structure.
@@ -37,10 +50,12 @@ pub struct Machine {
     pub pc: usize,
     /// Substitution environment mapping variable names to Terms.
     pub substitution: HashMap<String, Term>,
-    /// **New:** A control stack to hold frames for predicate calls.
+    /// A control stack to hold frames for predicate calls.
     pub control_stack: Vec<Frame>,
-    /// Predicate table mapping predicate names to code addresses.
+    /// A predicate table mapping predicate names to code addresses.
     pub predicate_table: HashMap<String, usize>,
+    /// A stack to hold choice points for backtracking.
+    pub choice_stack: Vec<ChoicePoint>,
 }
 
 impl Machine {
@@ -53,12 +68,13 @@ impl Machine {
             substitution: HashMap::new(),
             control_stack: Vec::new(),
             predicate_table: HashMap::new(),
+            choice_stack: Vec::new(),
         }
     }
 
-    // Register a predicate with its starting code address.
+    /// Register a predicate with its starting code address.
     pub fn register_predicate(&mut self, name: String, address: usize) {
-      self.predicate_table.insert(name, address);
+        self.predicate_table.insert(name, address);
     }
 
     /// Resolve a term to its current bound value, if any.
@@ -78,28 +94,23 @@ impl Machine {
 
     /// Unify two terms.
     ///
-    /// If one term is a variable that is not bound, bind it to the other.
+    /// If one term is an unbound variable, bind it to the other.
     /// If both are constants, they must be equal.
     pub fn unify(&mut self, t1: &Term, t2: &Term) -> bool {
         let term1 = self.resolve(t1);
         let term2 = self.resolve(t2);
         match (term1, term2) {
-            // Both are constants: they must be equal.
             (Term::Const(a), Term::Const(b)) => a == b,
-            // If the first term is a variable, bind it.
             (Term::Var(name), other) => {
                 self.substitution.insert(name, other);
                 true
             }
-            // If the second term is a variable, bind it.
             (other, Term::Var(name)) => {
                 self.substitution.insert(name, other);
                 true
             }
-            // If both are compound terms, check functor and arity.
             (Term::Compound(functor1, args1), Term::Compound(functor2, args2)) => {
                 if functor1 == functor2 && args1.len() == args2.len() {
-                    // Unify each pair of corresponding subterms.
                     for (a, b) in args1.iter().zip(args2.iter()) {
                         if !self.unify(a, b) {
                             return false;
@@ -110,14 +121,13 @@ impl Machine {
                     false
                 }
             }
-            // Any other combination fails unification.
             _ => false,
         }
     }
 
     /// Execute one instruction.
     ///
-    /// Returns `false` if there are no more instructions.
+    /// Returns `false` if there are no more instructions or a failure terminates execution.
     pub fn step(&mut self) -> bool {
         if self.pc >= self.code.len() {
             return false;
@@ -173,10 +183,8 @@ impl Machine {
                     eprintln!("Error: Register {} out of bounds", register);
                 }
             }
-            // **New:** Handle the Call instruction by looking up the predicate address.
             Instruction::Call { predicate } => {
                 if let Some(&jump_to) = self.predicate_table.get(&predicate) {
-                    // Push the current pc as the return address.
                     self.control_stack.push(Frame { return_pc: self.pc });
                     println!("Calling predicate: {}", predicate);
                     self.pc = jump_to;
@@ -184,13 +192,34 @@ impl Machine {
                     eprintln!("Call failed: predicate {} not found", predicate);
                 }
             }
-            // **New:** Handle the Proceed instruction.
             Instruction::Proceed => {
                 if let Some(frame) = self.control_stack.pop() {
                     self.pc = frame.return_pc;
                     println!("Proceed: returning to pc = {}", self.pc);
                 } else {
                     println!("Proceed: no frame to return to, finishing execution.");
+                }
+            }
+            Instruction::Choice => {
+                let cp = ChoicePoint {
+                    saved_pc: self.pc,
+                    saved_registers: self.registers.clone(),
+                    saved_substitution: self.substitution.clone(),
+                };
+                self.choice_stack.push(cp);
+                println!("Choice point created.");
+            }
+            Instruction::Fail => {
+                if let Some(cp) = self.choice_stack.pop() {
+                    // Restore the saved state.
+                    self.registers = cp.saved_registers;
+                    self.substitution = cp.saved_substitution;
+                    // Set pc to saved_pc + 2 to skip the failed alternative.
+                    self.pc = cp.saved_pc + 2;
+                    println!("Backtracked to choice point at pc = {}", self.pc);
+                } else {
+                    println!("Fail: no choice point available. Terminating.");
+                    return false;
                 }
             }
         }
