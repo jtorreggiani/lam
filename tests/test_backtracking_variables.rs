@@ -9,51 +9,54 @@ use lam::term::Term;
 ///
 /// ```prolog
 /// test_var_backtracking :-
-///     X,                     % PutVar reg0, "X"
-///     (                      % Create a choice point (state with X unbound)
-///         X = 100,           % GetConst reg0, 100 (first alternative binding)
-///         fail               % Force failure, triggering backtracking (undo binding)
-///         ;                  % Backtrack to choice point
-///         X = 300            % GetConst reg0, 300 (second alternative binding)
+///     X,                       % PutVar reg0, "X" (X is initially unbound)
+///     (                        % Create a choice point (state with X unbound is saved)
+///         X = 100,           % GetConst reg0, 100 (first alternative: binds X to 100)
+///         fail               % Force failure, triggering backtracking (undoes the binding from step 2)
+///         ;                  % Backtrack to the choice point
+///         X = 300            % GetConst reg0, 300 (second alternative: binds X to 300)
 ///     ).
-/// 
 /// % Expected result:
 /// %   X = 300.
 /// ```
+///
+/// Step-by-step:
+/// 1. Register 0 is set to variable X (unbound).
+/// 2. A Choice instruction saves the state, including an empty trail (trail length 0).
+/// 3. GetConst reg0, 100 unifies X with 100, pushing a trail entry. (Trail length becomes 1.)
+/// 4. Fail is executed, causing backtracking:
+///    - The trail is unwound back to the saved trail length (0).
+///    - The saved substitution (with X unbound) is restored.
+/// 5. Then, GetConst reg0, 300 unifies X with 300, pushing a new trail entry. (Trail length becomes 1.)
+/// 6. Finally, the substitution binds X to 300.
 /// 
-/// In this test:
-/// 1. Register 0 is initialized with an unbound variable "X".
-/// 2. A choice point is created, saving the state (with X unbound).
-/// 3. The first alternative attempts to bind X to 100 (recorded on the trail).
-/// 4. A Fail instruction forces backtracking, undoing the binding made after the choice point.
-/// 5. The second alternative then binds X to 300.
-/// 6. The test verifies that:
-///    - In the substitution environment, "X" is bound to Const(300),
-///    - And both the trail and choice stacks are empty.
+/// We then verify that:
+/// - The substitution environment binds "X" to Const(300).
+/// - The trail length is 1 (since the final unification pushed one trail entry).
+/// - The choice stack is empty.
 #[test]
 fn test_backtracking_variables() {
-    // Program structure:
-    // 0: PutVar   reg0, "X"       // Set reg0 to variable X (unbound)
-    // 1: Choice                   // Create a choice point (save state with X unbound)
-    // 2: GetConst reg0, 100       // First alternative: attempt to bind X to 100
-    // 3: Fail                     // Trigger backtracking (undo binding from step 2)
-    // 4: GetConst reg0, 300       // Second alternative: bind X to 300
     let code = vec![
+        // Step 0: PutVar reg0, "X" – set register 0 to the unbound variable X.
         Instruction::PutVar { register: 0, name: "X".to_string() },
+        // Step 1: Create a choice point (the current trail length is 0).
         Instruction::Choice,
+        // Step 2: First alternative: GetConst reg0, 100 – unify X with 100.
         Instruction::GetConst { register: 0, value: 100 },
+        // Step 3: Fail – triggers backtracking (undoes the binding from step 2).
         Instruction::Fail,
+        // Step 4: Second alternative: GetConst reg0, 300 – unify X with 300.
         Instruction::GetConst { register: 0, value: 300 },
     ];
     
     let mut machine = Machine::new(1, code);
     machine.run();
     
-    // Verify:
-    // - The substitution environment should have "X" bound to Const(300).
-    //   (Note: The register may still show Var("X"), so we check the substitution.)
+    // After execution, we expect that:
+    // - The substitution binds "X" to Const(300).
     assert_eq!(machine.substitution.get("X"), Some(&Term::Const(300)));
-    // - The trail and choice stacks should be empty after backtracking.
-    assert_eq!(machine.trail.len(), 0);
+    // - The trail length is 1 because the final unification (step 4) pushes one trail entry.
+    assert_eq!(machine.trail.len(), 1);
+    // - The choice stack is empty.
     assert_eq!(machine.choice_stack.len(), 0);
 }
