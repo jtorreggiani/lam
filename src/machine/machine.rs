@@ -176,7 +176,11 @@ impl Machine {
             Instruction::Call { predicate } => {
                 if let Some(clauses) = self.predicate_table.get(&predicate) {
                     if !clauses.is_empty() {
-                        // Push a control frame with the return address (current pc)**
+                        // By pushing a frame containing the current pc as the
+                        // return address, you ensure that when the called
+                        // predicate eventually finishes (by executing Proceed),
+                        // your machine can pop that frame and correctly resume
+                        // execution at the right spot.
                         self.control_stack.push(Frame {
                             return_pc: self.pc,
                         });
