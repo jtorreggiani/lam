@@ -1,6 +1,6 @@
 // tests/test_machine.rs
 
-use lam::machine::{Instruction, Machine};
+use lam::machine::{Machine, Instruction};
 use lam::term::Term;
 
 #[test]

@@ -7,4 +7,8 @@ pub enum Term {
     Var(String),
     // A compound term with a functor and a list of arguments.
     Compound(String, Vec<Term>),
+    // A lambda abstraction: λ<param>.<body>
+    Lambda(String, Box<Term>),
+    // An application: (<function> <argument>)
+    App(Box<Term>, Box<Term>),
 }
