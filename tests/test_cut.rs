@@ -3,26 +3,26 @@
 use lam::machine::{Instruction, Machine};
 use lam::term::Term;
 
-/// Test for the Cut instruction.
+// Test for the Cut instruction.
 ///
-/// This test simulates the following Prolog behavior:
-/// 
-/// ```prolog
-/// test_cut :-
-///     (   % Create two alternatives:
-///         ( X = 1, !, fail )   % First alternative: bind X to 1, then cut, then force failure
-///         ;
-///         X = 2               % Second alternative: bind X to 2
-///     ).
-/// % Expected result: X = 2.
-/// ```
-/// 
-/// In this test:
-/// 1. A Choice point is created.
-/// 2. The first alternative sets register 0 to 1, then executes a Cut, then forces failure.
-/// 3. The Cut should clear the choice points, so backtracking does not return to an earlier alternative.
-/// 4. The machine then continues (or finishes) without any further alternatives, so the final binding remains.
-/// We verify that register 0 does not remain 1 (the first alternative), implying the cut prevented backtracking.
+// This test simulates the following Prolog behavior:
+// 
+// ```prolog
+// test_cut :-
+//     (   % Create two alternatives:
+//         ( X = 1, !, fail )   % First alternative: bind X to 1, then cut, then force failure
+//         ;
+//         X = 2               % Second alternative: bind X to 2
+//     ).
+// % Expected result: X = 2.
+// ```
+// 
+// In this test:
+// 1. A Choice point is created.
+// 2. The first alternative sets register 0 to 1, then executes a Cut, then forces failure.
+// 3. The Cut should clear the choice points, so backtracking does not return to an earlier alternative.
+// 4. The machine then continues (or finishes) without any further alternatives, so the final binding remains.
+// We verify that register 0 does not remain 1 (the first alternative), implying the cut prevented backtracking.
 #[test]
 fn test_cut() {
     let code = vec![
