@@ -14,10 +14,8 @@ pub enum Instruction {
     GetConst { register: usize, value: i32 },
     /// Unifies the term in the register with a variable.
     GetVar { register: usize, name: String },
-    /// **New:** Call a predicate.
-    /// `jump_to` is where the predicate's code starts.
-    /// `return_pc` is where to resume after the predicate finishes.
-    Call { predicate: String, jump_to: usize, return_pc: usize },
+    /// Call a predicate (allow lookup by name).
+    Call { predicate: String },
     /// **New:** Proceed (return from a predicate).
     Proceed,
 }
@@ -41,6 +39,8 @@ pub struct Machine {
     pub substitution: HashMap<String, Term>,
     /// **New:** A control stack to hold frames for predicate calls.
     pub control_stack: Vec<Frame>,
+    /// Predicate table mapping predicate names to code addresses.
+    pub predicate_table: HashMap<String, usize>,
 }
 
 impl Machine {
@@ -52,7 +52,13 @@ impl Machine {
             pc: 0,
             substitution: HashMap::new(),
             control_stack: Vec::new(),
+            predicate_table: HashMap::new(),
         }
+    }
+
+    // Register a predicate with its starting code address.
+    pub fn register_predicate(&mut self, name: String, address: usize) {
+      self.predicate_table.insert(name, address);
     }
 
     /// Resolve a term to its current bound value, if any.
@@ -154,7 +160,6 @@ impl Machine {
                 if register < self.registers.len() {
                     if let Some(term) = self.registers[register].clone() {
                         let goal = Term::Var(name);
-                        // Reverse the order so that the new variable (goal) is bound to the stored value.
                         if !self.unify(&goal, &term) {
                             eprintln!(
                                 "Unification failed: cannot unify {:?} with {:?}",
@@ -168,11 +173,16 @@ impl Machine {
                     eprintln!("Error: Register {} out of bounds", register);
                 }
             }
-            // **New:** Handle the Call instruction.
-            Instruction::Call { predicate, jump_to, return_pc } => {
-                self.control_stack.push(Frame { return_pc });
-                println!("Calling predicate: {}", predicate);
-                self.pc = jump_to;
+            // **New:** Handle the Call instruction by looking up the predicate address.
+            Instruction::Call { predicate } => {
+                if let Some(&jump_to) = self.predicate_table.get(&predicate) {
+                    // Push the current pc as the return address.
+                    self.control_stack.push(Frame { return_pc: self.pc });
+                    println!("Calling predicate: {}", predicate);
+                    self.pc = jump_to;
+                } else {
+                    eprintln!("Call failed: predicate {} not found", predicate);
+                }
             }
             // **New:** Handle the Proceed instruction.
             Instruction::Proceed => {
