@@ -26,6 +26,16 @@ pub enum Instruction {
     BuildCompound { target: usize, functor: String, arg_registers: Vec<usize> },
     // Checks that the term in the specified register is a compound term with the given functor and arity.
     GetStructure { register: usize, functor: String, arity: usize },
+    // Push a new environment frame for local variables of size n.
+    Allocate { n: usize },
+    // Pop (remove) the most recently allocated environment frame.
+    Deallocate,
+    // Set the local variable at position index in the current environment to value.
+    SetLocal { index: usize, value: Term },
+    // Retrieve the local variable at position index from the current
+    // environment and place it into a specified register (or, more generally,
+    // unify it with the register’s content).
+    GetLocal { index: usize, register: usize },
 }
 
 // A frame to store return information for a predicate call.
@@ -69,6 +79,8 @@ pub struct Machine {
     pub choice_stack: Vec<ChoicePoint>,
     // A trail to record variable bindings (for backtracking).
     pub trail: Vec<TrailEntry>,
+    // A stack of environment frames for local variables.
+    pub environment_stack: Vec<Vec<Option<Term>>>,
 }
 
 impl Machine {
@@ -82,7 +94,8 @@ impl Machine {
             control_stack: Vec::new(),
             predicate_table: HashMap::new(),
             choice_stack: Vec::new(),
-            trail: Vec::new(), 
+            trail: Vec::new(),
+            environment_stack: Vec::new(),
         }
     }
 
@@ -217,6 +230,57 @@ impl Machine {
               };
               self.choice_stack.push(cp);
               println!("Choice point created.");
+          },
+          Instruction::Allocate { n } => {
+              // Create a new environment frame with n uninitialized local variables.
+              self.environment_stack.push(vec![None; n]);
+              println!("Allocated environment of size {}", n);
+          },
+          Instruction::Deallocate => {
+              if let Some(_) = self.environment_stack.pop() {
+                  println!("Deallocated environment");
+              } else {
+                  eprintln!("Deallocate failed: no environment to deallocate");
+              }
+          },
+          Instruction::SetLocal { index, value } => {
+              if let Some(env) = self.environment_stack.last_mut() {
+                  if index < env.len() {
+                      env[index] = Some(value);
+                      println!("Set local variable at index {}", index);
+                  } else {
+                      eprintln!("SetLocal failed: index {} out of bounds", index);
+                  }
+              } else {
+                  eprintln!("SetLocal failed: no environment allocated");
+              }
+          },
+          Instruction::GetLocal { index, register } => {
+              if let Some(env) = self.environment_stack.last() {
+                  if index < env.len() {
+                      if let Some(term) = env[index].clone() {
+                          // Unify the local variable with the content of the target register.
+                          if register < self.registers.len() {
+                              if let Some(reg_term) = self.registers[register].clone() {
+                                  if !self.unify(&reg_term, &term) {
+                                      eprintln!("GetLocal unification failed: cannot unify {:?} with {:?}", reg_term, term);
+                                  }
+                              } else {
+                                  // If the register is uninitialized, simply copy the term.
+                                  self.registers[register] = Some(term);
+                              }
+                          } else {
+                              eprintln!("GetLocal failed: register {} out of bounds", register);
+                          }
+                      } else {
+                          eprintln!("GetLocal failed: local variable at index {} is unbound", index);
+                      }
+                  } else {
+                      eprintln!("GetLocal failed: index {} out of bounds", index);
+                  }
+              } else {
+                  eprintln!("GetLocal failed: no environment allocated");
+              }
           },
           Instruction::Fail => {
               if let Some(cp) = self.choice_stack.pop() {
