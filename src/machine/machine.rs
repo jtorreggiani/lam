@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use crate::term::Term;
+use crate::arithmetic;
+
 use super::{
     instruction::Instruction,
     frame::Frame,
@@ -120,7 +122,7 @@ impl Machine {
     }
 
     // Execute one instruction.
-    ///
+    //
     // Returns `false` if there are no more instructions or a failure terminates execution.
     pub fn step(&mut self) -> bool {
         if self.pc >= self.code.len() {
@@ -228,6 +230,15 @@ impl Machine {
                     eprintln!("Deallocate failed: no environment to deallocate");
                 }
             },
+            Instruction::ArithmeticIs { target, expression } => {
+                let result = arithmetic::evaluate(&expression);
+                if target < self.registers.len() {
+                    self.registers[target] = Some(Term::Const(result));
+                    println!("ArithmeticIs: evaluated expression to {} and stored in register {}", result, target);
+                } else {
+                    eprintln!("ArithmeticIs failed: target register {} out of bounds", target);
+                }
+            },
             Instruction::SetLocal { index, value } => {
                 if let Some(env) = self.environment_stack.last_mut() {
                     if index < env.len() {
@@ -314,11 +325,9 @@ impl Machine {
                 }
             },
             Instruction::IndexedCall { predicate, index_register } => {
-                // Retrieve the key from the specified register.
                 if index_register >= self.registers.len() {
                     eprintln!("IndexedCall failed: register {} out of bounds", index_register);
                 } else if let Some(key_term) = self.registers[index_register].clone() {
-                    // Look up the index table for this predicate.
                     if let Some(index_map) = self.index_table.get(&predicate) {
                         if let Some(clauses) = index_map.get(&key_term) {
                             if !clauses.is_empty() {

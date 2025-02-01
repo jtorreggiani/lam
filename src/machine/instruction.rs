@@ -1,4 +1,5 @@
 use crate::term::Term;
+use crate::arithmetic::Expr;
 
 /// The set of instructions for our abstract machine.
 #[derive(Debug, PartialEq, Clone)]
@@ -25,11 +26,16 @@ pub enum Instruction {
     GetStructure { register: usize, functor: String, arity: usize },
     // Environment management instructions.
     Allocate { n: usize },
+    // Deallocates the top n frames from the environment stack.
     Deallocate,
+    // Sets a local variable in the current environment frame.
     SetLocal { index: usize, value: Term },
+    // Retrieves a local variable from the current environment frame.
     GetLocal { index: usize, register: usize },
     // TailCall — a tail-recursive call to a predicate.
     TailCall { predicate: String },
     // IndexedCall uses the content of the specified register as an index key.
     IndexedCall { predicate: String, index_register: usize },
+    // Arithmetic instructions.
+    ArithmeticIs { target: usize, expression: Expr },
 }
