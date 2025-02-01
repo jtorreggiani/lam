@@ -393,6 +393,26 @@ impl Machine {
                     eprintln!("TailCall failed: predicate {} not found", predicate);
                 }
             },
+            Instruction::AssertClause { predicate, address } => {
+                // Add the clause address to the predicate's clause list.
+                self.predicate_table
+                    .entry(predicate.clone())
+                    .or_insert_with(Vec::new)
+                    .push(address);
+                println!("AssertClause: added clause at address {} for predicate {}", address, predicate);
+            },
+            Instruction::RetractClause { predicate, address } => {
+                if let Some(clauses) = self.predicate_table.get_mut(&predicate) {
+                    if let Some(pos) = clauses.iter().position(|&a| a == address) {
+                        clauses.remove(pos);
+                        println!("RetractClause: removed clause at address {} for predicate {}", address, predicate);
+                    } else {
+                        eprintln!("RetractClause: clause at address {} not found for predicate {}", address, predicate);
+                    }
+                } else {
+                    eprintln!("RetractClause: predicate {} not found", predicate);
+                }
+            },            
             Instruction::BuildCompound { target, functor, arg_registers } => {
                 let mut args = Vec::new();
                 for &reg in arg_registers.iter() {

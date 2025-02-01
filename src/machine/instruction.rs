@@ -38,4 +38,8 @@ pub enum Instruction {
     IndexedCall { predicate: String, index_register: usize },
     // Arithmetic instructions.
     ArithmeticIs { target: usize, expression: Expr },
+    // AssertClause adds a clause address for a predicate.
+    AssertClause { predicate: String, address: usize },
+    // RetractClause removes a clause address for a predicate.
+    RetractClause { predicate: String, address: usize },
 }
