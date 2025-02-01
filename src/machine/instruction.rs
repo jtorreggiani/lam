@@ -42,4 +42,6 @@ pub enum Instruction {
     AssertClause { predicate: String, address: usize },
     // RetractClause removes a clause address for a predicate.
     RetractClause { predicate: String, address: usize },
+    // Cut — prunes all choice points for the current predicate call.
+    Cut,
 }

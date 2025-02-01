@@ -412,7 +412,11 @@ impl Machine {
                 } else {
                     eprintln!("RetractClause: predicate {} not found", predicate);
                 }
-            },            
+            },
+            Instruction::Cut => {
+                self.choice_stack.clear();
+                println!("Cut executed: cleared all choice points.");
+            },          
             Instruction::BuildCompound { target, functor, arg_registers } => {
                 let mut args = Vec::new();
                 for &reg in arg_registers.iter() {
