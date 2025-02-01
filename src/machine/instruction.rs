@@ -1,7 +1,7 @@
 use crate::term::Term;
 use crate::arithmetic::Expr;
 
-/// The set of instructions for our abstract machine.
+// The set of instructions for our abstract machine.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Instruction {
     // Puts a constant in a register.

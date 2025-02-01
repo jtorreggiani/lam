@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use crate::term::Term;
 
-/// A choice point to support backtracking and clause selection.
-/// Saves the program counter, registers, substitution, the current length of the trail,
-/// and a list of alternative clause addresses for the current predicate call.
+// A choice point to support backtracking and clause selection.
+// Saves the program counter, registers, substitution, the current length of the trail,
+// and a list of alternative clause addresses for the current predicate call.
 #[derive(Debug, Clone)]
 pub struct ChoicePoint {
     pub saved_pc: usize,

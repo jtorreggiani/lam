@@ -176,6 +176,11 @@ impl Machine {
             Instruction::Call { predicate } => {
                 if let Some(clauses) = self.predicate_table.get(&predicate) {
                     if !clauses.is_empty() {
+                        // Push a control frame with the return address (current pc)**
+                        self.control_stack.push(Frame {
+                            return_pc: self.pc,
+                        });
+
                         let mut alternatives = clauses.clone();
                         let jump_to = alternatives.remove(0);
                         let alternative_clauses = if alternatives.is_empty() {
