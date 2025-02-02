@@ -43,7 +43,7 @@ pub struct Machine {
 }
 
 impl Machine {
-    // Create a new machine with a specified number of registers and given code.
+    /// Create a new machine with a specified number of registers and given code.
     pub fn new(num_registers: usize, code: Vec<Instruction>) -> Self {
         Self {
             registers: vec![None; num_registers],
@@ -59,7 +59,19 @@ impl Machine {
         }
     }
 
-    // Returns true if `var` occurs anywhere inside `term`.
+    /// Helper function to bind a variable to a term.
+    /// Returns false if the occurs check fails; otherwise, returns true after performing the binding.
+    fn bind_variable(&mut self, name: &String, term: &Term) -> bool {
+        if self.occurs_check(name, term) {
+            return false;
+        }
+        let prev = self.substitution.get(name).cloned();
+        self.trail.push(TrailEntry { variable: name.clone(), previous_value: prev });
+        self.substitution.insert(name.clone(), term.clone());
+        true
+    }
+
+    /// Returns true if `var` occurs anywhere inside `term`.
     fn occurs_check(&self, var: &String, term: &Term) -> bool {
         match term {
             Term::Var(name) => name == var,
@@ -124,25 +136,8 @@ impl Machine {
 
         match (term1, term2) {
             (Term::Const(a), Term::Const(b)) => a == b,
-            (Term::Var(ref name), ref other) => {
-                // Add occurs-check here:
-                if self.occurs_check(name, other) {
-                    return false;
-                }
-                let prev = self.substitution.get(name).cloned();
-                self.trail.push(TrailEntry { variable: name.clone(), previous_value: prev });
-                self.substitution.insert(name.clone(), other.clone());
-                true
-            }
-            (ref other, Term::Var(ref name)) => {
-                if self.occurs_check(name, other) {
-                    return false;
-                }
-                let prev = self.substitution.get(name).cloned();
-                self.trail.push(TrailEntry { variable: name.clone(), previous_value: prev });
-                self.substitution.insert(name.clone(), other.clone());
-                true
-            }
+            (Term::Var(ref name), ref other) => self.bind_variable(name, other),
+            (ref other, Term::Var(ref name)) => self.bind_variable(name, other),
             (Term::Compound(functor1, args1), Term::Compound(functor2, args2)) => {
                 if functor1 == functor2 && args1.len() == args2.len() {
                     for (a, b) in args1.iter().zip(args2.iter()) {
@@ -154,7 +149,7 @@ impl Machine {
                 } else {
                     false
                 }
-            }
+            },
             _ => false,
         }
     }
