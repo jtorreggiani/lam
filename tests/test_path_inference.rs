@@ -69,7 +69,7 @@ fn benchmark_path_inference() {
         Instruction::Call { predicate: "edge".to_string() },
         Instruction::Proceed,
         // Clause for path/2, Clause 2: path(X,Y) :- edge(X,Z), path(Z,Y).
-        Instruction::PutVar { register: 2, name: "Z".to_string() },
+        Instruction::PutVar { register: 2, var_id: 0, name: "Z".to_string() },
         Instruction::Call { predicate: "edge".to_string() },
         Instruction::Call { predicate: "path".to_string() },
         Instruction::Proceed,

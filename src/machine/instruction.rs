@@ -6,12 +6,12 @@ use crate::arithmetic::Expr;
 pub enum Instruction {
     // Puts a constant in a register.
     PutConst { register: usize, value: i32 },
-    // Puts a variable in a register.
-    PutVar { register: usize, name: String },
+    // Puts a variable in a register. The variable is identified by a unique id and its string name.
+    PutVar { register: usize, var_id: usize, name: String },
     // Unifies the term in the register with the given constant.
     GetConst { register: usize, value: i32 },
     // Unifies the term in the register with a variable.
-    GetVar { register: usize, name: String },
+    GetVar { register: usize, var_id: usize, name: String },
     // Calls a predicate by name.
     Call { predicate: String },
     // Proceeds (returns) from the current predicate.

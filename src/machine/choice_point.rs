@@ -8,7 +8,7 @@ use crate::term::Term;
 pub struct ChoicePoint {
     pub saved_pc: usize,
     pub saved_registers: Vec<Option<Term>>,
-    pub saved_substitution: HashMap<String, Term>,
+    pub saved_substitution: HashMap<usize, Term>,
     pub saved_trail_len: usize,
     pub alternative_clauses: Option<Vec<usize>>,
 }

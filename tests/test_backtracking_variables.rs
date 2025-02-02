@@ -37,26 +37,22 @@ use lam::term::Term;
 #[test]
 fn test_backtracking_variables() {
     let code = vec![
-        // Step 0: PutVar reg0, "X" – set register 0 to the unbound variable X.
-        Instruction::PutVar { register: 0, name: "X".to_string() },
-        // Step 1: Create a choice point (the current trail length is 0).
-        Instruction::Choice,
-        // Step 2: First alternative: GetConst reg0, 100 – unify X with 100.
-        Instruction::GetConst { register: 0, value: 100 },
-        // Step 3: Fail – triggers backtracking (undoes the binding from step 2).
-        Instruction::Fail,
-        // Step 4: Second alternative: GetConst reg0, 300 – unify X with 300.
-        Instruction::GetConst { register: 0, value: 300 },
-    ];
-    
-    let mut machine = Machine::new(1, code);
-    let _ = machine.run();
-    
-    // After execution, we expect that:
-    // - The substitution binds "X" to Const(300).
-    assert_eq!(machine.substitution.get("X"), Some(&Term::Const(300)));
-    // - The trail length is 1 because the final unification (step 4) pushes one trail entry.
-    assert_eq!(machine.trail.len(), 1);
-    // - The choice stack is empty.
-    assert_eq!(machine.choice_stack.len(), 0);
+      // Step 0: PutVar reg0, "X" with var_id 0.
+      Instruction::PutVar { register: 0, var_id: 0, name: "X".to_string() },
+      // Step 1: Create a choice point.
+      Instruction::Choice,
+      // Step 2: First alternative: GetConst reg0, 100.
+      Instruction::GetConst { register: 0, value: 100 },
+      // Step 3: Fail.
+      Instruction::Fail,
+      // Step 4: Second alternative: GetConst reg0, 300.
+      Instruction::GetConst { register: 0, value: 300 },
+  ];
+
+  let mut machine = Machine::new(1, code);
+  let _ = machine.run();
+  // "X" should be bound to 300.
+  assert_eq!(machine.substitution.get(&0), Some(&Term::Const(300)));
+  assert_eq!(machine.trail.len(), 1);
+  assert_eq!(machine.choice_stack.len(), 0);
 }

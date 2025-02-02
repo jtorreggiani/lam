@@ -1,5 +1,3 @@
-// File: src/machine/machine.rs
-
 use std::collections::HashMap;
 use crate::term::Term;
 use crate::arithmetic;
@@ -43,8 +41,8 @@ pub struct Machine {
     pub code: Vec<Instruction>,
     /// Program counter.
     pub pc: usize,
-    /// Substitution environment mapping variable names to Terms.
-    pub substitution: HashMap<String, Term>,
+    /// Substitution environment mapping variable unique id to Terms.
+    pub substitution: HashMap<usize, Term>,
     /// A control stack to hold frames for predicate calls.
     pub control_stack: Vec<Frame>,
     /// A predicate table mapping predicate names to lists of clause addresses.
@@ -57,6 +55,8 @@ pub struct Machine {
     pub environment_stack: Vec<Vec<Option<Term>>>,
     /// Index table mapping predicate names to an index mapping.
     pub index_table: HashMap<String, HashMap<Term, Vec<usize>>>,
+    /// Mapping from variable unique id to its original string name.
+    pub variable_names: HashMap<usize, String>,
 }
 
 impl Machine {
@@ -73,25 +73,26 @@ impl Machine {
             trail: Vec::new(),
             environment_stack: Vec::new(),
             index_table: HashMap::new(),
+            variable_names: HashMap::new(),
         }
     }
 
-    /// Helper function to bind a variable to a term.
+    /// Helper function to bind a variable (by its unique id) to a term.
     /// Returns false if the occurs check fails; otherwise, returns true after performing the binding.
-    fn bind_variable(&mut self, name: &String, term: &Term) -> bool {
-        if self.occurs_check(name, term) {
+    fn bind_variable(&mut self, var: &usize, term: &Term) -> bool {
+        if self.occurs_check(var, term) {
             return false;
         }
-        let prev = self.substitution.get(name).cloned();
-        self.trail.push(TrailEntry { variable: name.clone(), previous_value: prev });
-        self.substitution.insert(name.clone(), term.clone());
+        let prev = self.substitution.get(var).cloned();
+        self.trail.push(TrailEntry { variable: *var, previous_value: prev });
+        self.substitution.insert(*var, term.clone());
         true
     }
 
     /// Returns true if `var` occurs anywhere inside `term`.
-    fn occurs_check(&self, var: &String, term: &Term) -> bool {
+    fn occurs_check(&self, var: &usize, term: &Term) -> bool {
         match term {
-            Term::Var(name) => name == var,
+            Term::Var(v) => v == var,
             Term::Const(_) => false,
             Term::Compound(_, args) => args.iter().any(|arg| self.occurs_check(var, arg)),
             Term::Lambda(param, body) => {
@@ -122,8 +123,8 @@ impl Machine {
     /// Resolve a term to its current bound value, if any.
     fn resolve(&self, term: &Term) -> Term {
         match term {
-            Term::Var(name) => {
-                if let Some(bound) = self.substitution.get(name) {
+            Term::Var(v) => {
+                if let Some(bound) = self.substitution.get(v) {
                     self.resolve(bound)
                 } else {
                     term.clone()
@@ -145,8 +146,8 @@ impl Machine {
 
         match (term1, term2) {
             (Term::Const(a), Term::Const(b)) => a == b,
-            (Term::Var(ref name), ref other) => self.bind_variable(name, other),
-            (ref other, Term::Var(ref name)) => self.bind_variable(name, other),
+            (Term::Var(ref v), ref other) => self.bind_variable(v, other),
+            (ref other, Term::Var(ref v)) => self.bind_variable(v, other),
             (Term::Compound(functor1, args1), Term::Compound(functor2, args2)) => {
                 if functor1 == functor2 && args1.len() == args2.len() {
                     for (a, b) in args1.iter().zip(args2.iter()) {
@@ -181,9 +182,10 @@ impl Machine {
                     Err(MachineError::RegisterOutOfBounds(register))
                 }
             },
-            Instruction::PutVar { register, name } => {
+            Instruction::PutVar { register, var_id, name } => {
                 if register < self.registers.len() {
-                    self.registers[register] = Some(Term::Var(name));
+                    self.registers[register] = Some(Term::Var(var_id));
+                    self.variable_names.insert(var_id, name);
                     Ok(())
                 } else {
                     Err(MachineError::RegisterOutOfBounds(register))
@@ -206,12 +208,14 @@ impl Machine {
                     Err(MachineError::UninitializedRegister(register))
                 }
             },
-            Instruction::GetVar { register, name } => {
+            Instruction::GetVar { register, var_id, name } => {
                 if register >= self.registers.len() {
                     return Err(MachineError::RegisterOutOfBounds(register));
                 }
+                // Ensure the machine knows the name for this variable.
+                self.variable_names.entry(var_id).or_insert(name);
                 if let Some(term) = self.registers[register].clone() {
-                    let goal = Term::Var(name);
+                    let goal = Term::Var(var_id);
                     if !self.unify(&goal, &term) {
                         return Err(MachineError::UnificationFailed(format!(
                             "Cannot unify {:?} with {:?}",
@@ -220,7 +224,9 @@ impl Machine {
                     }
                     Ok(())
                 } else {
-                    Err(MachineError::UninitializedRegister(register))
+                    // If uninitialized, simply set the register to the variable.
+                    self.registers[register] = Some(Term::Var(var_id));
+                    Ok(())
                 }
             },
             Instruction::Call { predicate } => {
@@ -256,7 +262,6 @@ impl Machine {
                 if let Some(frame) = self.control_stack.pop() {
                     self.pc = frame.return_pc;
                 }
-                // If no frame exists, we simply continue (or finish execution).
                 Ok(())
             },
             Instruction::Choice => {
