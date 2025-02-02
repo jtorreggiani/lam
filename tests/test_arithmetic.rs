@@ -1,5 +1,3 @@
-// tests/test_arithmetic.rs
-
 use lam::machine::{Instruction, Machine};
 use lam::term::Term;
 use lam::arithmetic::{Expr, evaluate};
