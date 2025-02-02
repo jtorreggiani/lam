@@ -115,6 +115,13 @@ impl Machine {
     pub fn unify(&mut self, t1: &Term, t2: &Term) -> bool {
         let term1 = self.resolve(t1);
         let term2 = self.resolve(t2);
+
+        // If the two resolved terms are equal, unification succeeds.
+        // This is a performance optimization.
+        if term1 == term2 {
+            return true;
+        }
+
         match (term1, term2) {
             (Term::Const(a), Term::Const(b)) => a == b,
             (Term::Var(ref name), ref other) => {
@@ -151,7 +158,6 @@ impl Machine {
             _ => false,
         }
     }
-    
 
     // Execute one instruction.
     //
