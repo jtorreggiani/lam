@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# Create the combined file with a header
+echo "// Combined Rust source code from LAM project (including tests)" > docs/all_source.rs
+echo "// Generated on $(date)" >> docs/all_source.rs
+echo "" >> docs/all_source.rs
+
+# Function to add a file with header
+add_file() {
+    echo "// ============================================" >> docs/all_source.rs
+    echo "// File: $1" >> docs/all_source.rs
+    echo "// ============================================" >> docs/all_source.rs
+    echo "" >> docs/all_source.rs
+    cat "$1" >> docs/all_source.rs
+    echo "" >> docs/all_source.rs
+}
+
+# Add source files in a specific order (mod.rs files first, then others)
+echo "// === Source Files ===" >> docs/all_source.rs
+add_file src/lib.rs
+add_file src/machine/mod.rs
+add_file src/machine/machine.rs
+add_file src/machine/frame.rs
+add_file src/machine/instruction.rs
+add_file src/machine/choice_point.rs
+add_file src/machine/trail.rs
+add_file src/arithmetic.rs
+add_file src/term.rs
+add_file src/lambda.rs
+add_file src/main.rs
+
+# Add test files
+echo "" >> docs/all_source.rs
+echo "// === Test Files ===" >> docs/all_source.rs
+add_file tests/test_arithmetic.rs
+add_file tests/test_backtracking_constants.rs
+add_file tests/test_backtracking_variables.rs
+add_file tests/test_benchmark.rs
+add_file tests/test_build_compound.rs
+add_file tests/test_cut.rs
+add_file tests/test_dynamic_clause_management.rs
+add_file tests/test_environment.rs
+add_file tests/test_get_structure.rs
+add_file tests/test_higher_order.rs
+add_file tests/test_indexed_call.rs
+add_file tests/test_machine.rs
+add_file tests/test_path_inference.rs
+add_file tests/test_tail_call.rs
+add_file tests/test_term.rs
+add_file tests/test_unification.rs
+
+echo "Combined Rust source code (including tests) has been written to docs/all_source.rs"
