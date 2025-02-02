@@ -1,37 +1,68 @@
 # Logic Abstract Machine
 
-The Logical Abstract Machine (LAM) is a stack-based, abstract machine that can design to evaluate logical expressions. It is inspired by the Warren Abstract Machine (WAM) used in Prolog implementations.
+The Logical Abstract Machine (LAM) is a stack-based, abstract machine that can design to evaluate logical expressions. It is inspired by the Warren Abstract Machine (WAM) used in Prolog implementations, but it is not intended specifically for Prolog.
 
-🚧 This project is under active development and should be considered a work in progress.
+🚧 LAM is under active development and should be considered a work in progress.
 
-## Background
+## Introduction
 
-The WAM was developed by David H. D. Warren in 1983 while he was at the University of Edinburgh. It's considered one of the most influential developments in the implementation of logic programming languages, particularly Prolog.
+The aim for LAM is to provide a robust core for implementing logic programming languages that is optimized for higher order logics, probabilistic logic, other advanced logic programming paradigms. The LAM is designed to be an efficient and flexible abstract machine that can be easily extended and adapted to different programming languages and paradigms.
 
-The key aspects of the WAM include:
+## Design
 
-Register Architecture: The WAM defines a specialized register-based architecture optimized for Prolog execution. It includes registers for argument passing, temporary variables, and environment management.
-Memory Areas: It organizes memory into several distinct areas:
+LAM has been in Rust based on the principles presented in the the book [Warren's Abstract Machine: A Tutorial Reconstruction](https://direct.mit.edu/books/monograph/4253/Warren-s-Abstract-MachineA-Tutorial-Reconstruction) by Hassan Ait-Kaci. It currently has basic support for unification, backtracking, and arithmetic evaluation.
 
-- Code area (for storing compiled programs)
-- Heap (for storing structured terms)
-- Stack (for environment and choice point frames)
-- Trail (for variable bindings that may need to be undone during backtracking)
+## File Structure
 
-Instruction Set: The WAM defines a set of abstract machine instructions specifically designed for Prolog operations, including:
+```
+.
+├── Cargo.lock
+├── Cargo.toml
+├── README.md
+├── docs
+│   └── GRAMMAR.md
+├── src
+│   ├── arithmetic.rs
+│   ├── lambda.rs
+│   ├── lib.rs
+│   ├── machine
+│   │   ├── choice_point.rs
+│   │   ├── frame.rs
+│   │   ├── instruction.rs
+│   │   ├── machine.rs
+│   │   ├── mod.rs
+│   │   └── trail.rs
+│   ├── main.rs
+│   └── term.rs
+└── tests
+    ├── test_arithmetic.rs
+    ├── test_backtracking_constants.rs
+    ├── test_backtracking_variables.rs
+    ├── test_benchmark.rs
+    ├── test_build_compound.rs
+    ├── test_cut.rs
+    ├── test_dynamic_clause_management.rs
+    ├── test_environment.rs
+    ├── test_get_structure.rs
+    ├── test_higher_order.rs
+    ├── test_indexed_call.rs
+    ├── test_machine.rs
+    ├── test_path_inference.rs
+    ├── test_tail_call.rs
+    ├── test_term.rs
+    └── test_unification.rs
+```
 
-- Get instructions (for argument passing)
-- Put instructions (for constructing terms)
-- Unify instructions (for pattern matching)
-- Control instructions (for procedure calls and returns)
+## Usage
 
-Term Representation: It uses a tagged architecture to represent Prolog terms efficiently, with different tag bits indicating the type of term (variable, constant, structure, etc.).
+To build LAM you need Rust and Cargo installed. You can build the project by running:
 
-Backtracking Mechanism: The WAM implements Prolog's backtracking through choice points, which store the machine state at points where alternative clauses could be tried.
+```bash
+cargo build
+```
 
-The WAM has served as the basis for many Prolog implementations and has influenced the design of other logic programming systems. Its efficiency comes from several optimizations:
+To run the tests:
 
-- Compile-time analysis to reduce runtime overhead
-- Specialized instructions for common Prolog operations
-- Efficient memory management strategies
-- Smart register allocation
+```bash
+cargo test
+```
