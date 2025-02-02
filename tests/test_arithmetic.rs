@@ -21,7 +21,7 @@ fn test_arithmetic_is() {
         },
     ];
     let mut machine = Machine::new(1, code);
-    machine.run();
+    let _ = machine.run();
     
     // The result should be stored in register 0.
     assert_eq!(machine.registers[0], Some(Term::Const(14)));

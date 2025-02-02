@@ -30,7 +30,7 @@ fn test_environment() {
     ];
     
     let mut machine = Machine::new(2, code);
-    machine.run();
+    let _ = machine.run();
     
     // Verify that the registers hold the expected local values.
     assert_eq!(machine.registers[0], Some(Term::Const(42)));

@@ -28,7 +28,7 @@ fn test_get_structure() {
     ];
     
     let mut machine = Machine::new(3, code);
-    machine.run();
+    let _ = machine.run();
     
     // The BuildCompound should have built f(1,2) in register 2.
     let expected = Term::Compound("f".to_string(), vec![Term::Const(1), Term::Const(2)]);

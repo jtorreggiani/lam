@@ -50,7 +50,7 @@ fn test_backtracking_variables() {
     ];
     
     let mut machine = Machine::new(1, code);
-    machine.run();
+    let _ = machine.run();
     
     // After execution, we expect that:
     // - The substitution binds "X" to Const(300).

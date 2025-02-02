@@ -1,5 +1,3 @@
-// tests/test_machine.rs
-
 use lam::machine::{Machine, Instruction};
 use lam::term::Term;
 
@@ -18,7 +16,8 @@ fn test_put_const_instruction() {
 
     // Execute one instruction.
     let cont = machine.step();
-    assert!(cont);
+    // Instead of `assert!(cont);`, check that the result is Ok.
+    assert!(cont.is_ok());
 
     // After execution, register 0 should contain the constant 42.
     assert_eq!(machine.registers[0], Some(Term::Const(42)));
@@ -26,7 +25,8 @@ fn test_put_const_instruction() {
     assert_eq!(machine.registers[1], None);
 
     // There should be no further instruction.
-    assert!(!machine.step());
+    // Instead of using `assert!(!machine.step());`, check that stepping returns an error.
+    assert!(machine.step().is_err());
 }
 
 #[test]
@@ -38,8 +38,8 @@ fn test_put_var_instruction() {
     let code = vec![Instruction::PutVar { register: 1, name: "X".to_string() }];
     let mut machine = Machine::new(2, code);
 
-    // Run the machine.
-    machine.run();
+    // Run the machine and unwrap the result.
+    machine.run().unwrap();
 
     // Register 1 should now contain a variable "X".
     assert_eq!(machine.registers[1], Some(Term::Var("X".to_string())));
@@ -57,7 +57,7 @@ fn test_get_const_unification_success() {
     ];
     let mut machine = Machine::new(1, code);
 
-    machine.run();
+    machine.run().unwrap();
 
     // Unification should succeed and register 0 remains as 42.
     assert_eq!(machine.registers[0], Some(Term::Const(42)));
@@ -75,11 +75,8 @@ fn test_get_const_unification_failure() {
     ];
     let mut machine = Machine::new(1, code);
 
-    machine.run();
-
-    // Our current implementation simply prints an error on unification failure,
-    // and leaves the register unchanged.
-    assert_eq!(machine.registers[0], Some(Term::Const(42)));
+    // In this test, we expect an error.
+    assert!(machine.run().is_err());
 }
 
 #[test]
@@ -95,7 +92,7 @@ fn test_get_var_unification() {
     ];
     let mut machine = Machine::new(1, code);
 
-    machine.run();
+    machine.run().unwrap();
 
     // The register should remain unchanged (still holds variable "X").
     assert_eq!(machine.registers[0], Some(Term::Var("X".to_string())));
@@ -107,35 +104,31 @@ fn test_get_var_unification() {
 
 #[test]
 fn test_call_and_proceed_with_lookup() {
-    // We construct a program with 6 instructions arranged as follows:
-    //
-    // 0: PutConst   reg0, 10         ; Main code: set reg0 to 10.
-    // 1: Call       predicate "dummy_pred"  ; Call using lookup.
-    // 2: (This instruction is skipped, as control jumps to predicate code.)
-    // 3: PutConst   reg1, 20         ; Predicate code: set reg1 to 20.
-    // 4: Proceed                     ; End of predicate: return.
-    // 5: PutConst   reg2, 30         ; Main continuation: set reg2 to 30.
+    // Updated program:
+    // 0: PutConst   reg0, 10         ; main code: set reg0 to 10.
+    // 1: Call       predicate "dummy_pred" ; call predicate (jumps to index 2).
+    // 2: PutConst   reg1, 20         ; predicate clause: set reg1 to 20.
+    // 3: Proceed                     ; predicate returns.
+    // 4: PutConst   reg2, 30         ; main continuation: set reg2 to 30.
     let code = vec![
         Instruction::PutConst { register: 0, value: 10 },
         Instruction::Call { predicate: "dummy_pred".to_string() },
-        Instruction::PutConst { register: 99, value: 0 }, // dummy instruction (won't execute)
         Instruction::PutConst { register: 1, value: 20 },
         Instruction::Proceed,
         Instruction::PutConst { register: 2, value: 30 },
     ];
     
     let mut machine = Machine::new(3, code);
-    // Register the predicate "dummy_pred" to start at index 3.
-    machine.register_predicate("dummy_pred".to_string(), 3);
+    // Register the predicate "dummy_pred" so that its clause starts at index 2.
+    machine.register_predicate("dummy_pred".to_string(), 2);
     
-    // Run the entire program.
-    machine.run();
+    machine.run().unwrap();
     
-    // Check expected register values.
+    // Verify that registers have been set as expected.
     assert_eq!(machine.registers[0], Some(Term::Const(10)));
     assert_eq!(machine.registers[1], Some(Term::Const(20)));
     assert_eq!(machine.registers[2], Some(Term::Const(30)));
     
-    // The control stack should be empty at the end.
+    // Verify that the control stack is empty.
     assert_eq!(machine.control_stack.len(), 0);
 }

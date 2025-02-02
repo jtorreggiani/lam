@@ -87,7 +87,7 @@ fn benchmark_path_inference() {
 
     // Benchmark: run the program and measure the execution time.
     let start = std::time::Instant::now();
-    machine.run();
+    let _ = machine.run();
     let duration = start.elapsed();
     
     // Print the solution (what remains in registers 0 and 1 after the query).

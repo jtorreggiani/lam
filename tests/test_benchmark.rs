@@ -36,7 +36,7 @@ fn benchmark_arithmetic_is() {
     for _ in 0..iterations {
         // Create a fresh machine for each iteration.
         let mut machine = Machine::new(1, code.clone());
-        machine.run();
+        let _ = machine.run();
         // Verify correctness: register 0 should contain 14.
         assert_eq!(machine.registers[0], Some(Term::Const(14)));
     }

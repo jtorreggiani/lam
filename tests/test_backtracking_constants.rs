@@ -49,7 +49,7 @@ fn test_backtracking_constants() {
     ];
     
     let mut machine = Machine::new(2, code);
-    machine.run();
+    let _ = machine.run();
     
     // Verify:
     // - reg0 should remain 10.

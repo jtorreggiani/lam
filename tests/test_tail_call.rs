@@ -33,7 +33,7 @@ fn test_tail_call() {
     // Register predicate "p" to start at index 4.
     machine.register_predicate("p".to_string(), 4);
     
-    machine.run();
+    let _ = machine.run();
     
     // Verify that register 0 was set to 200 by predicate "p".
     assert_eq!(machine.registers[0], Some(Term::Const(200)));

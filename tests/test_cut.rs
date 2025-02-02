@@ -42,7 +42,7 @@ fn test_cut() {
     let mut machine = Machine::new(1, code);
     // For this test, we pre-register a dummy predicate if needed.
     // (Alternatively, the Call instruction might be used in a more complex scenario.)
-    machine.run();
+    let _ = machine.run();
     
     // After running, because of the cut, the first alternative's failure should not backtrack to the second alternative.
     // Therefore, the value in register 0 should remain as it was set before the cut.

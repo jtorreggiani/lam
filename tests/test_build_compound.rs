@@ -35,7 +35,7 @@ fn test_build_compound() {
     ];
     
     let mut machine = Machine::new(3, code);
-    machine.run();
+    let _ = machine.run();
     
     // Expected compound term: f(42, 99)
     let expected = Term::Compound("f".to_string(), vec![Term::Const(42), Term::Const(99)]);

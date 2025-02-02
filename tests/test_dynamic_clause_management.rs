@@ -37,7 +37,7 @@ fn test_dynamic_clause_management() {
     // Initially, predicate "p" is not registered in the static table.
     // We rely solely on the AssertClause instruction to add it.
     // Run the program.
-    machine.run();
+    let _ = machine.run();
 
     // After the first call, register 0 should have been set to 1.
     assert_eq!(machine.registers[0], Some(Term::Const(1)));

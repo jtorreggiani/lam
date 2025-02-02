@@ -37,7 +37,7 @@ fn test_indexed_call() {
     // Set register 0 to Const(2), which is the index key we want to use.
     machine.registers[0] = Some(Term::Const(2));
     
-    machine.run();
+    let _ = machine.run();
     
     // We expect that the IndexedCall will select Clause 2, setting register 0 to 20.
     assert_eq!(machine.registers[0], Some(Term::Const(20)));

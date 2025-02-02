@@ -1,3 +1,5 @@
+// File: src/machine/machine.rs
+
 use std::collections::HashMap;
 use crate::term::Term;
 use crate::arithmetic;
@@ -9,36 +11,51 @@ use super::{
     trail::TrailEntry,
 };
 
+/// The set of errors that can occur during execution of the LAM.
 #[derive(Debug)]
 pub enum MachineError {
     RegisterOutOfBounds(usize),
+    UninitializedRegister(usize),
     UnificationFailed(String),
     EnvironmentMissing,
+    PredicateNotFound(String),
+    PredicateClauseNotFound(String),
+    NoChoicePoint,
+    StructureMismatch {
+        expected_functor: String,
+        expected_arity: usize,
+        found_functor: String,
+        found_arity: usize,
+    },
+    NotACompoundTerm(usize),
+    NoIndexedClause(String, Term),
+    NoIndexEntry(String, Term),
+    PredicateNotInIndex(String),
+    NoMoreInstructions,
 }
 
-// The abstract machine structure.
+/// The abstract machine structure.
 #[derive(Debug)]
 pub struct Machine {
-    // Registers: each can hold an optional Term.
+    /// Registers: each can hold an optional Term.
     pub registers: Vec<Option<Term>>,
-    // The code (instructions) for the machine.
+    /// The code (instructions) for the machine.
     pub code: Vec<Instruction>,
-    // Program counter.
+    /// Program counter.
     pub pc: usize,
-    // Substitution environment mapping variable names to Terms.
+    /// Substitution environment mapping variable names to Terms.
     pub substitution: HashMap<String, Term>,
-    // A control stack to hold frames for predicate calls.
+    /// A control stack to hold frames for predicate calls.
     pub control_stack: Vec<Frame>,
-    // A predicate table mapping predicate names to lists of clause addresses.
+    /// A predicate table mapping predicate names to lists of clause addresses.
     pub predicate_table: HashMap<String, Vec<usize>>,
-    // A stack to hold choice points for backtracking.
+    /// A stack to hold choice points for backtracking.
     pub choice_stack: Vec<ChoicePoint>,
-    // A trail to record variable bindings (for backtracking).
+    /// A trail to record variable bindings (for backtracking).
     pub trail: Vec<TrailEntry>,
-    // A stack of environment frames for local variables.
+    /// A stack of environment frames for local variables.
     pub environment_stack: Vec<Vec<Option<Term>>>,
-    // Index table mapping predicate names to an index mapping.
-    // For each predicate, the key is a Term (the index value) and the value is a vector of clause addresses.
+    /// Index table mapping predicate names to an index mapping.
     pub index_table: HashMap<String, HashMap<Term, Vec<usize>>>,
 }
 
@@ -78,7 +95,6 @@ impl Machine {
             Term::Const(_) => false,
             Term::Compound(_, args) => args.iter().any(|arg| self.occurs_check(var, arg)),
             Term::Lambda(param, body) => {
-                // If the lambda binds the same variable, no free occurrence is possible.
                 if param == var {
                     false
                 } else {
@@ -89,15 +105,13 @@ impl Machine {
         }
     }
 
-    // Registers an indexed clause for the given predicate.
-    // The clause is associated with a key (typically the value of the first argument).
+    /// Registers an indexed clause for the given predicate.
     pub fn register_indexed_clause(&mut self, predicate: String, key: Term, address: usize) {
         let entry = self.index_table.entry(predicate).or_insert_with(HashMap::new);
         entry.entry(key).or_insert_with(Vec::new).push(address);
     }
 
-    // Registers a clause for the given predicate name.
-    // Each call to this function adds one clause address.
+    /// Registers a clause for the given predicate name.
     pub fn register_predicate(&mut self, name: String, address: usize) {
         self.predicate_table
             .entry(name)
@@ -105,12 +119,11 @@ impl Machine {
             .push(address);
     }
 
-    // Resolve a term to its current bound value, if any.
+    /// Resolve a term to its current bound value, if any.
     fn resolve(&self, term: &Term) -> Term {
         match term {
             Term::Var(name) => {
                 if let Some(bound) = self.substitution.get(name) {
-                    // Recursively resolve in case of chained bindings.
                     self.resolve(bound)
                 } else {
                     term.clone()
@@ -120,16 +133,12 @@ impl Machine {
         }
     }
 
-    // Unify two terms.
-    //
-    // If one term is an unbound variable, bind it to the other.
-    // If both are constants, they must be equal.
+    /// Unify two terms.
+    /// If unification fails, returns false.
     pub fn unify(&mut self, t1: &Term, t2: &Term) -> bool {
         let term1 = self.resolve(t1);
         let term2 = self.resolve(t2);
 
-        // If the two resolved terms are equal, unification succeeds.
-        // This is a performance optimization.
         if term1 == term2 {
             return true;
         }
@@ -154,12 +163,12 @@ impl Machine {
         }
     }
 
-    // Execute one instruction.
-    //
-    // Returns `false` if there are no more instructions or a failure terminates execution.
-    pub fn step(&mut self) -> bool {
+    /// Execute one instruction.
+    /// Returns `Ok(())` if the instruction executed normally,
+    /// or an appropriate `MachineError` if an error occurred.
+    pub fn step(&mut self) -> Result<(), MachineError> {
         if self.pc >= self.code.len() {
-            return false;
+            return Err(MachineError::NoMoreInstructions);
         }
         let instr = self.code[self.pc].clone();
         self.pc += 1;
@@ -167,88 +176,88 @@ impl Machine {
             Instruction::PutConst { register, value } => {
                 if register < self.registers.len() {
                     self.registers[register] = Some(Term::Const(value));
+                    Ok(())
                 } else {
-                    eprintln!("Error: Register {} out of bounds", register);
+                    Err(MachineError::RegisterOutOfBounds(register))
                 }
             },
             Instruction::PutVar { register, name } => {
                 if register < self.registers.len() {
                     self.registers[register] = Some(Term::Var(name));
+                    Ok(())
                 } else {
-                    eprintln!("Error: Register {} out of bounds", register);
+                    Err(MachineError::RegisterOutOfBounds(register))
                 }
             },
             Instruction::GetConst { register, value } => {
-                if register < self.registers.len() {
-                    if let Some(term) = self.registers[register].clone() {
-                        let goal = Term::Const(value);
-                        if !self.unify(&term, &goal) {
-                            eprintln!("Unification failed: cannot unify {:?} with {:?}", term, goal);
-                        }
-                    } else {
-                        eprintln!("Error: Register {} is uninitialized", register);
+                if register >= self.registers.len() {
+                    return Err(MachineError::RegisterOutOfBounds(register));
+                }
+                if let Some(term) = self.registers[register].clone() {
+                    let goal = Term::Const(value);
+                    if !self.unify(&term, &goal) {
+                        return Err(MachineError::UnificationFailed(format!(
+                            "Cannot unify {:?} with {:?}",
+                            term, goal
+                        )));
                     }
+                    Ok(())
                 } else {
-                    eprintln!("Error: Register {} out of bounds", register);
+                    Err(MachineError::UninitializedRegister(register))
                 }
             },
             Instruction::GetVar { register, name } => {
-                if register < self.registers.len() {
-                    if let Some(term) = self.registers[register].clone() {
-                        let goal = Term::Var(name);
-                        if !self.unify(&goal, &term) {
-                            eprintln!("Unification failed: cannot unify {:?} with {:?}", goal, term);
-                        }
-                    } else {
-                        eprintln!("Error: Register {} is uninitialized", register);
+                if register >= self.registers.len() {
+                    return Err(MachineError::RegisterOutOfBounds(register));
+                }
+                if let Some(term) = self.registers[register].clone() {
+                    let goal = Term::Var(name);
+                    if !self.unify(&goal, &term) {
+                        return Err(MachineError::UnificationFailed(format!(
+                            "Cannot unify {:?} with {:?}",
+                            goal, term
+                        )));
                     }
+                    Ok(())
                 } else {
-                    eprintln!("Error: Register {} out of bounds", register);
+                    Err(MachineError::UninitializedRegister(register))
                 }
             },
             Instruction::Call { predicate } => {
                 if let Some(clauses) = self.predicate_table.get(&predicate) {
-                    if !clauses.is_empty() {
-                        // By pushing a frame containing the current pc as the
-                        // return address, you ensure that when the called
-                        // predicate eventually finishes (by executing Proceed),
-                        // your machine can pop that frame and correctly resume
-                        // execution at the right spot.
-                        self.control_stack.push(Frame {
-                            return_pc: self.pc,
-                        });
-
-                        let mut alternatives = clauses.clone();
-                        let jump_to = alternatives.remove(0);
-                        let alternative_clauses = if alternatives.is_empty() {
-                            None
-                        } else {
-                            Some(alternatives)
-                        };
-                        let cp = ChoicePoint {
-                            saved_pc: self.pc,
-                            saved_registers: self.registers.clone(),
-                            saved_substitution: self.substitution.clone(),
-                            saved_trail_len: self.trail.len(),
-                            alternative_clauses,
-                        };
-                        self.choice_stack.push(cp);
-                        println!("Calling predicate: {} using clause at address {}", predicate, jump_to);
-                        self.pc = jump_to;
-                    } else {
-                        eprintln!("Call failed: no clause addresses for predicate {}", predicate);
+                    if clauses.is_empty() {
+                        return Err(MachineError::PredicateClauseNotFound(predicate));
                     }
+                    self.control_stack.push(Frame {
+                        return_pc: self.pc,
+                    });
+                    let mut alternatives = clauses.clone();
+                    let jump_to = alternatives.remove(0);
+                    let alternative_clauses = if alternatives.is_empty() {
+                        None
+                    } else {
+                        Some(alternatives)
+                    };
+                    let cp = ChoicePoint {
+                        saved_pc: self.pc,
+                        saved_registers: self.registers.clone(),
+                        saved_substitution: self.substitution.clone(),
+                        saved_trail_len: self.trail.len(),
+                        alternative_clauses,
+                    };
+                    self.choice_stack.push(cp);
+                    self.pc = jump_to;
+                    Ok(())
                 } else {
-                    eprintln!("Call failed: predicate {} not found", predicate);
+                    Err(MachineError::PredicateNotFound(predicate))
                 }
             },
             Instruction::Proceed => {
                 if let Some(frame) = self.control_stack.pop() {
                     self.pc = frame.return_pc;
-                    println!("Proceed: returning to pc = {}", self.pc);
-                } else {
-                    println!("Proceed: no frame to return to, finishing execution.");
                 }
+                // If no frame exists, we simply continue (or finish execution).
+                Ok(())
             },
             Instruction::Choice => {
                 let cp = ChoicePoint {
@@ -259,38 +268,38 @@ impl Machine {
                     alternative_clauses: None,
                 };
                 self.choice_stack.push(cp);
-                println!("Choice point created.");
+                Ok(())
             },
             Instruction::Allocate { n } => {
                 self.environment_stack.push(vec![None; n]);
-                println!("Allocated environment of size {}", n);
+                Ok(())
             },
             Instruction::Deallocate => {
-                if let Some(_) = self.environment_stack.pop() {
-                    println!("Deallocated environment");
+                if self.environment_stack.pop().is_some() {
+                    Ok(())
                 } else {
-                    eprintln!("Deallocate failed: no environment to deallocate");
+                    Err(MachineError::EnvironmentMissing)
                 }
             },
             Instruction::ArithmeticIs { target, expression } => {
                 let result = arithmetic::evaluate(&expression);
                 if target < self.registers.len() {
                     self.registers[target] = Some(Term::Const(result));
-                    println!("ArithmeticIs: evaluated expression to {} and stored in register {}", result, target);
+                    Ok(())
                 } else {
-                    eprintln!("ArithmeticIs failed: target register {} out of bounds", target);
+                    Err(MachineError::RegisterOutOfBounds(target))
                 }
             },
             Instruction::SetLocal { index, value } => {
                 if let Some(env) = self.environment_stack.last_mut() {
                     if index < env.len() {
                         env[index] = Some(value);
-                        println!("Set local variable at index {}", index);
+                        Ok(())
                     } else {
-                        eprintln!("SetLocal failed: index {} out of bounds", index);
+                        Err(MachineError::RegisterOutOfBounds(index))
                     }
                 } else {
-                    eprintln!("SetLocal failed: no environment allocated");
+                    Err(MachineError::EnvironmentMissing)
                 }
             },
             Instruction::GetLocal { index, register } => {
@@ -300,22 +309,26 @@ impl Machine {
                             if register < self.registers.len() {
                                 if let Some(reg_term) = self.registers[register].clone() {
                                     if !self.unify(&reg_term, &term) {
-                                        eprintln!("GetLocal unification failed: cannot unify {:?} with {:?}", reg_term, term);
+                                        return Err(MachineError::UnificationFailed(format!(
+                                            "Cannot unify {:?} with {:?}",
+                                            reg_term, term
+                                        )));
                                     }
                                 } else {
                                     self.registers[register] = Some(term);
                                 }
+                                Ok(())
                             } else {
-                                eprintln!("GetLocal failed: register {} out of bounds", register);
+                                Err(MachineError::RegisterOutOfBounds(register))
                             }
                         } else {
-                            eprintln!("GetLocal failed: local variable at index {} is unbound", index);
+                            Err(MachineError::UninitializedRegister(index))
                         }
                     } else {
-                        eprintln!("GetLocal failed: index {} out of bounds", index);
+                        Err(MachineError::RegisterOutOfBounds(index))
                     }
                 } else {
-                    eprintln!("GetLocal failed: no environment allocated");
+                    Err(MachineError::EnvironmentMissing)
                 }
             },
             Instruction::Fail => {
@@ -335,41 +348,40 @@ impl Machine {
                     self.registers = cp.saved_registers;
                     self.substitution = cp.saved_substitution;
                     self.pc = cp.saved_pc + 2; // Skip the failed alternative.
-                    println!("Backtracked to choice point at pc = {}", self.pc);
+                    Ok(())
                 } else {
-                    println!("Fail: no choice point available. Terminating.");
-                    return false;
+                    Err(MachineError::NoChoicePoint)
                 }
             },
             Instruction::GetStructure { register, functor, arity } => {
-                if register < self.registers.len() {
-                    if let Some(term) = self.registers[register].clone() {
-                        match term {
-                            Term::Compound(ref f, ref args) => {
-                                if f == &functor && args.len() == arity {
-                                    println!("GetStructure succeeded: found {} with arity {}", functor, arity);
-                                } else {
-                                    eprintln!(
-                                        "GetStructure failed: expected {} with arity {}, found {} with arity {}",
-                                        functor, arity, f, args.len()
-                                    );
-                                }
-                            },
-                            _ => {
-                                eprintln!("GetStructure failed: expected a compound term in register {}", register);
-                            },
-                        }
-                    } else {
-                        eprintln!("Error: Register {} is uninitialized", register);
+                if register >= self.registers.len() {
+                    return Err(MachineError::RegisterOutOfBounds(register));
+                }
+                if let Some(term) = self.registers[register].clone() {
+                    match term {
+                        Term::Compound(ref f, ref args) => {
+                            if f == &functor && args.len() == arity {
+                                Ok(())
+                            } else {
+                                Err(MachineError::StructureMismatch {
+                                    expected_functor: functor,
+                                    expected_arity: arity,
+                                    found_functor: f.clone(),
+                                    found_arity: args.len(),
+                                })
+                            }
+                        },
+                        _ => Err(MachineError::NotACompoundTerm(register)),
                     }
                 } else {
-                    eprintln!("Error: Register {} out of bounds", register);
+                    Err(MachineError::UninitializedRegister(register))
                 }
             },
             Instruction::IndexedCall { predicate, index_register } => {
                 if index_register >= self.registers.len() {
-                    eprintln!("IndexedCall failed: register {} out of bounds", index_register);
-                } else if let Some(key_term) = self.registers[index_register].clone() {
+                    return Err(MachineError::RegisterOutOfBounds(index_register));
+                }
+                if let Some(key_term) = self.registers[index_register].clone() {
                     if let Some(index_map) = self.index_table.get(&predicate) {
                         if let Some(clauses) = index_map.get(&key_term) {
                             if !clauses.is_empty() {
@@ -388,27 +400,23 @@ impl Machine {
                                     alternative_clauses,
                                 };
                                 self.choice_stack.push(cp);
-                                println!("IndexedCall: predicate {} with key {:?} jumping to clause at address {}", predicate, key_term, jump_to);
                                 self.pc = jump_to;
+                                Ok(())
                             } else {
-                                eprintln!("IndexedCall failed: no clauses for predicate {} with key {:?}", predicate, key_term);
+                                Err(MachineError::NoIndexedClause(predicate, key_term))
                             }
                         } else {
-                            eprintln!("IndexedCall: no index entry for predicate {} with key {:?}", predicate, key_term);
+                            Err(MachineError::NoIndexEntry(predicate, key_term))
                         }
                     } else {
-                        eprintln!("IndexedCall failed: predicate {} not found in index table", predicate);
+                        Err(MachineError::PredicateNotInIndex(predicate))
                     }
                 } else {
-                    eprintln!("IndexedCall failed: register {} is uninitialized", index_register);
+                    Err(MachineError::UninitializedRegister(index_register))
                 }
             },
             Instruction::TailCall { predicate } => {
-                if let Some(_) = self.environment_stack.pop() {
-                    println!("TailCall: deallocated current environment frame.");
-                } else {
-                    println!("TailCall: no environment frame to deallocate.");
-                }
+                let _ = self.environment_stack.pop(); // Deallocate current environment frame.
                 if let Some(clauses) = self.predicate_table.get(&predicate) {
                     if !clauses.is_empty() {
                         let mut alternatives = clauses.clone();
@@ -426,71 +434,66 @@ impl Machine {
                             alternative_clauses,
                         };
                         self.choice_stack.push(cp);
-                        println!("TailCall: predicate {} tail-called to clause at address {}", predicate, jump_to);
                         self.pc = jump_to;
+                        Ok(())
                     } else {
-                        eprintln!("TailCall failed: no clause addresses for predicate {}", predicate);
+                        Err(MachineError::PredicateClauseNotFound(predicate))
                     }
                 } else {
-                    eprintln!("TailCall failed: predicate {} not found", predicate);
+                    Err(MachineError::PredicateNotFound(predicate))
                 }
             },
             Instruction::AssertClause { predicate, address } => {
-                // Add the clause address to the predicate's clause list.
                 self.predicate_table
                     .entry(predicate.clone())
                     .or_insert_with(Vec::new)
                     .push(address);
-                println!("AssertClause: added clause at address {} for predicate {}", address, predicate);
+                Ok(())
             },
             Instruction::RetractClause { predicate, address } => {
                 if let Some(clauses) = self.predicate_table.get_mut(&predicate) {
                     if let Some(pos) = clauses.iter().position(|&a| a == address) {
                         clauses.remove(pos);
-                        println!("RetractClause: removed clause at address {} for predicate {}", address, predicate);
+                        Ok(())
                     } else {
-                        eprintln!("RetractClause: clause at address {} not found for predicate {}", address, predicate);
+                        Err(MachineError::PredicateClauseNotFound(predicate))
                     }
                 } else {
-                    eprintln!("RetractClause: predicate {} not found", predicate);
+                    Err(MachineError::PredicateNotFound(predicate))
                 }
             },
             Instruction::Cut => {
-                // The behavior of cut can be subtle. In some systems, a cut not
-                // only prevents backtracking but also causes the current predicate
-                // to fail if no alternative is available. In our simple model,
-                // we're using cut solely to clear the choice stack. You may refine
-                // the semantics of cut later as needed.
                 self.choice_stack.clear();
-                println!("Cut executed: cleared all choice points.");
+                Ok(())
             },
             Instruction::BuildCompound { target, functor, arg_registers } => {
                 let mut args = Vec::new();
                 for &reg in arg_registers.iter() {
-                    if reg < self.registers.len() {
-                        if let Some(term) = self.registers[reg].clone() {
-                            args.push(term);
-                        } else {
-                            eprintln!("Error: Register {} is uninitialized", reg);
-                            return true;
-                        }
+                    if reg >= self.registers.len() {
+                        return Err(MachineError::RegisterOutOfBounds(reg));
+                    }
+                    if let Some(term) = self.registers[reg].clone() {
+                        args.push(term);
                     } else {
-                        eprintln!("Error: Register {} out of bounds", reg);
-                        return true;
+                        return Err(MachineError::UninitializedRegister(reg));
                     }
                 }
                 if target < self.registers.len() {
                     self.registers[target] = Some(Term::Compound(functor, args));
+                    Ok(())
                 } else {
-                    eprintln!("Error: Target register {} out of bounds", target);
+                    Err(MachineError::RegisterOutOfBounds(target))
                 }
             },
         }
-        true
     }
 
-    // Run the machine until no more instructions are available.
-    pub fn run(&mut self) {
-        while self.step() {}
+    /// Run the machine until no more instructions are available.
+    /// Returns `Ok(())` if execution completed, or a `MachineError` otherwise.
+    pub fn run(&mut self) -> Result<(), MachineError> {
+        while self.pc < self.code.len() {
+            self.step()?;
+        }
+        Ok(())
     }
 }
