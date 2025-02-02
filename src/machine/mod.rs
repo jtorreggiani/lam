@@ -9,3 +9,4 @@ pub use frame::Frame;
 pub use choice_point::ChoicePoint;
 pub use trail::TrailEntry;
 pub use machine::Machine;
+pub use machine::MachineError;
