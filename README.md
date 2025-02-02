@@ -10,7 +10,7 @@ The aim for LAM is to provide a robust core for implementing logic programming l
 
 ## Design
 
-LAM has been in Rust based on the principles presented in the the book [Warren's Abstract Machine: A Tutorial Reconstruction](https://direct.mit.edu/books/monograph/4253/Warren-s-Abstract-MachineA-Tutorial-Reconstruction) by Hassan Ait-Kaci. It currently has basic support for unification, backtracking, and arithmetic evaluation.
+LAM has been built in Rust based on the principles presented in the book [Warren's Abstract Machine: A Tutorial Reconstruction](https://direct.mit.edu/books/monograph/4253/Warren-s-Abstract-MachineA-Tutorial-Reconstruction) by Hassan Ait-Kaci. It currently has basic support for unification, backtracking, and arithmetic evaluation.
 
 ## File Structure
 
