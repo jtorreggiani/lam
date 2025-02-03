@@ -1,6 +1,6 @@
 // tests/test_benchmark.rs
 
-use lam::arithmetic::Expr;
+use lam::arithmetic::Expression;
 use lam::machine::{Instruction, Machine};
 use lam::term::Term;
 use std::time::Instant;
@@ -19,9 +19,9 @@ use std::time::Instant;
 #[test]
 fn benchmark_arithmetic_is() {
     // Build the arithmetic expression: (3 + 4) * 2.
-    let expr = Expr::Mul(
-        Box::new(Expr::Add(Box::new(Expr::Const(3)), Box::new(Expr::Const(4)))),
-        Box::new(Expr::Const(2))
+    let expr = Expression::Mul(
+        Box::new(Expression::Add(Box::new(Expression::Const(3)), Box::new(Expression::Const(4)))),
+        Box::new(Expression::Const(2))
     );
 
     // The program consists of one instruction that evaluates the expression and stores

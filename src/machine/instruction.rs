@@ -1,5 +1,5 @@
 use crate::term::Term;
-use crate::arithmetic::Expr;
+use crate::arithmetic::Expression;
 
 // The set of instructions for our abstract machine.
 #[derive(Debug, PartialEq, Clone)]
@@ -37,7 +37,7 @@ pub enum Instruction {
     // IndexedCall uses the content of the specified register as an index key.
     IndexedCall { predicate: String, index_register: usize },
     // Arithmetic instructions.
-    ArithmeticIs { target: usize, expression: Expr },
+    ArithmeticIs { target: usize, expression: Expression },
     // AssertClause adds a clause address for a predicate.
     AssertClause { predicate: String, address: usize },
     // RetractClause removes a clause address for a predicate.
