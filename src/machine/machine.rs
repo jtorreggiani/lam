@@ -264,13 +264,14 @@ impl Machine {
                 }
                 Ok(())
             },
-            Instruction::Choice => {
+            Instruction::Choice { alternative } => {
                 let cp = ChoicePoint {
                     saved_pc: self.pc,
                     saved_registers: self.registers.clone(),
                     saved_substitution: self.substitution.clone(),
                     saved_trail_len: self.trail.len(),
-                    alternative_clauses: None,
+                    // Record the alternative clause address provided by the instruction.
+                    alternative_clauses: Some(vec![alternative]),
                 };
                 self.choice_stack.push(cp);
                 Ok(())
@@ -337,26 +338,40 @@ impl Machine {
                 }
             },
             Instruction::Fail => {
-                if let Some(cp) = self.choice_stack.pop() {
+                // Attempt to backtrack by checking available choice points.
+                while let Some(mut cp) = self.choice_stack.pop() {
+                    // Restore the trail to the saved length.
                     while self.trail.len() > cp.saved_trail_len {
                         if let Some(entry) = self.trail.pop() {
                             match entry.previous_value {
                                 Some(prev_val) => {
                                     self.substitution.insert(entry.variable, prev_val);
-                                }
+                                },
                                 None => {
                                     self.substitution.remove(&entry.variable);
                                 }
                             }
                         }
                     }
-                    self.registers = cp.saved_registers;
-                    self.substitution = cp.saved_substitution;
-                    self.pc = cp.saved_pc + 2; // Skip the failed alternative.
-                    Ok(())
-                } else {
-                    Err(MachineError::NoChoicePoint)
+                    // Restore registers and substitution environment by cloning.
+                    self.registers = cp.saved_registers.clone();
+                    self.substitution = cp.saved_substitution.clone();
+            
+                    // Check if this choice point has any alternative clause addresses.
+                    if let Some(ref mut alternatives) = cp.alternative_clauses {
+                        if let Some(next_addr) = alternatives.pop() {
+                            // If further alternatives remain, push the updated choice point back.
+                            if !alternatives.is_empty() {
+                                self.choice_stack.push(cp);
+                            }
+                            self.pc = next_addr;
+                            return Ok(());
+                        }
+                    }
+                    // If no alternatives remain for this choice point, try the next one.
                 }
+                // If no choice point with alternatives is found, signal failure.
+                Err(MachineError::NoChoicePoint)
             },
             Instruction::GetStructure { register, functor, arity } => {
                 if register >= self.registers.len() {

@@ -34,17 +34,16 @@ use lam::term::Term;
 ///    - and the choice stack is empty.
 #[test]
 fn test_backtracking_constants() {
-    // Program structure:
-    // 0: PutConst   reg0, 10     // Store 10 in reg0 (persists)
-    // 1: Choice                  // Save state for backtracking
-    // 2: PutConst   reg1, 20     // First alternative: reg1 = 20 (will be undone)
-    // 3: Fail                    // Trigger backtracking
-    // 4: PutConst   reg1, 30     // Second alternative: reg1 = 30
     let code = vec![
+        // Instruction 0: Set reg0 to 10.
         Instruction::PutConst { register: 0, value: 10 },
-        Instruction::Choice,
+        // Instruction 1: Create a choice point; record that the alternative branch is at address 4.
+        Instruction::Choice { alternative: 4 },
+        // Instruction 2: First alternative: set reg1 to 20.
         Instruction::PutConst { register: 1, value: 20 },
+        // Instruction 3: Force failure.
         Instruction::Fail,
+        // Instruction 4: Second alternative: set reg1 to 30.
         Instruction::PutConst { register: 1, value: 30 },
     ];
     

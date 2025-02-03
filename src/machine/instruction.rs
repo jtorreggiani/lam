@@ -17,7 +17,7 @@ pub enum Instruction {
     // Proceeds (returns) from the current predicate.
     Proceed,
     // Creates a choice point (for backtracking).
-    Choice,
+    Choice { alternative: usize },
     // Fails and triggers backtracking.
     Fail,
     // Constructs a compound term from registers.

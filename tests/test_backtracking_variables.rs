@@ -39,8 +39,8 @@ fn test_backtracking_variables() {
     let code = vec![
       // Step 0: PutVar reg0, "X" with var_id 0.
       Instruction::PutVar { register: 0, var_id: 0, name: "X".to_string() },
-      // Step 1: Create a choice point.
-      Instruction::Choice,
+      // Step 1: Create a choice point, record that the alternative is at address 4.
+      Instruction::Choice { alternative: 4 },
       // Step 2: First alternative: GetConst reg0, 100.
       Instruction::GetConst { register: 0, value: 100 },
       // Step 3: Fail.

@@ -26,8 +26,8 @@ use lam::term::Term;
 #[test]
 fn test_cut() {
     let code = vec![
-        // Create a choice point.
-        Instruction::Choice,
+        // Create a choice point, record that the alternative branch is at address 4.
+        Instruction::Choice { alternative: 4 },
         // First alternative: bind X (reg0) to 1.
         Instruction::PutConst { register: 0, value: 1 },
         // Execute cut, which clears choice points.
