@@ -1,12 +1,11 @@
 use crate::term::Term;
 use crate::arithmetic::Expression;
 
-// The set of instructions for our abstract machine.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Instruction {
     // Puts a constant in a register.
     PutConst { register: usize, value: i32 },
-    // Puts a variable in a register. The variable is identified by a unique id and its string name.
+    // Puts a variable in a register.
     PutVar { register: usize, var_id: usize, name: String },
     // Unifies the term in the register with the given constant.
     GetConst { register: usize, value: i32 },
@@ -26,16 +25,15 @@ pub enum Instruction {
     GetStructure { register: usize, functor: String, arity: usize },
     // Environment management instructions.
     Allocate { n: usize },
-    // Deallocates the top n frames from the environment stack.
     Deallocate,
-    // Sets a local variable in the current environment frame.
     SetLocal { index: usize, value: Term },
-    // Retrieves a local variable from the current environment frame.
     GetLocal { index: usize, register: usize },
     // TailCall — a tail-recursive call to a predicate.
     TailCall { predicate: String },
-    // IndexedCall uses the content of the specified register as an index key.
+    // IndexedCall uses a single register’s content as an index key.
     IndexedCall { predicate: String, index_register: usize },
+    // New: MultiIndexedCall uses multiple registers to build an index key.
+    MultiIndexedCall { predicate: String, index_registers: Vec<usize> },
     // Arithmetic instructions.
     ArithmeticIs { target: usize, expression: Expression },
     // AssertClause adds a clause address for a predicate.

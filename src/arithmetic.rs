@@ -7,14 +7,12 @@ pub enum Expression {
     Div(Box<Expression>, Box<Expression>),
 }
 
-// Recursively evaluates an arithmetic expression.
 pub fn evaluate(expr: &Expression) -> i32 {
-  match expr {
-      Expression::Const(n) => *n,
-      Expression::Add(e1, e2) => evaluate(e1) + evaluate(e2),
-      Expression::Sub(e1, e2) => evaluate(e1) - evaluate(e2),
-      Expression::Mul(e1, e2) => evaluate(e1) * evaluate(e2),
-      // Note: does not check for division by zero.
-      Expression::Div(e1, e2) => evaluate(e1) / evaluate(e2),
-  }
+    match expr {
+        Expression::Const(n) => *n,
+        Expression::Add(e1, e2) => evaluate(e1) + evaluate(e2),
+        Expression::Sub(e1, e2) => evaluate(e1) - evaluate(e2),
+        Expression::Mul(e1, e2) => evaluate(e1) * evaluate(e2),
+        Expression::Div(e1, e2) => evaluate(e1) / evaluate(e2), // note: division by zero not checked
+    }
 }

@@ -1,105 +1,80 @@
 use std::collections::HashMap;
 use crate::term::Term;
-use crate::machine::machine::MachineError;
+use crate::machine::MachineError;
 
 #[derive(Debug, Clone)]
 pub struct UnionFind {
-    /// Maps variable id to its parent variable id.
-    parent: HashMap<usize, usize>,
-    /// Maps the representative variable id to its binding (if any).
-    binding: HashMap<usize, Term>,
+    // Mapping from variable id to the term it is bound to.
+    pub parent: HashMap<usize, Term>,
 }
 
 impl UnionFind {
     pub fn new() -> Self {
         Self {
             parent: HashMap::new(),
-            binding: HashMap::new(),
         }
     }
 
-    /// Finds the representative for a variable, compressing paths along the way.
-    pub fn find(&mut self, var: usize) -> usize {
-        // Initialize self-parenting if necessary.
-        if !self.parent.contains_key(&var) {
-            self.parent.insert(var, var);
-            return var;
-        }
-        let parent = self.parent[&var];
-        if parent != var {
-            let rep = self.find(parent);
-            self.parent.insert(var, rep); // Path compression.
-            rep
-        } else {
-            var
-        }
-    }
-
-    /// Unifies two variables by merging their equivalence classes.
-    pub fn union(&mut self, var1: usize, var2: usize) {
-        let rep1 = self.find(var1);
-        let rep2 = self.find(var2);
-        if rep1 != rep2 {
-            // For simplicity, always attach rep2 to rep1.
-            self.parent.insert(rep2, rep1);
-            // If one representative is bound and the other isn’t, propagate the binding.
-            if let Some(term) = self.binding.get(&rep2).cloned() {
-                self.binding.insert(rep1, term);
-            }
-        }
-    }
-
-    /// Iteratively checks whether `var` occurs in `term` to prevent cyclic bindings.
-    /// This is our iterative occurs check.
-    pub fn occurs_check(term: &Term, var: usize) -> bool {
-        let mut stack = vec![term];
-        while let Some(current) = stack.pop() {
-            match current {
-                crate::term::Term::Var(v) if *v == var => return true,
-                crate::term::Term::Compound(_, args) => stack.extend(args.iter()),
-                crate::term::Term::Lambda(param, body) => {
-                    if *param != var {
-                        stack.push(body);
-                    }
-                },
-                crate::term::Term::App(fun, arg) => {
-                    stack.push(fun);
-                    stack.push(arg);
-                },
-                _ => {}
-            }
-        }
-        false
-    }
-
-    /// Binds the variable `var` (its representative) to a term.
-    /// Returns an error if the occurs check fails.
-    pub fn bind(&mut self, var: usize, term: &Term) -> Result<(), MachineError> {
-        if UnionFind::occurs_check(term, var) {
-            return Err(MachineError::UnificationFailed(format!(
-                "Occurs check failed: variable {} in term {:?}",
-                var, term
-            )));
-        }
-        let rep = self.find(var);
-        self.binding.insert(rep, term.clone());
-        Ok(())
-    }
-
-    /// Resolves a term: if it is a variable and is bound, return its binding recursively.
+    /// Recursively resolves a term. If it is a variable and has a binding,
+    /// follow the chain and apply path compression.
     pub fn resolve(&mut self, term: &Term) -> Term {
         match term {
-            Term::Var(v) => {
-                // First find the representative for `v` immutably.
-                let rep = self.find(*v);
-                if let Some(bound) = self.binding.get(&rep).cloned() {
-                    let resolved_bound = self.resolve(&bound);
-                    return resolved_bound;
+            Term::Var(var_id) => {
+                if let Some(binding) = self.parent.get(var_id) {
+                    // Clone the binding so the immutable borrow ends.
+                    let binding = binding.clone();
+                    let resolved = self.resolve(&binding);
+                    // Path compression: update the binding to the final resolved term.
+                    self.parent.insert(*var_id, resolved.clone());
+                    resolved
                 } else {
-                    return term.clone();
+                    term.clone()
                 }
             },
-            _ => term.clone(), // Other types are not affected.
+            // For compounds, resolve all subterms.
+            Term::Compound(f, args) => {
+                Term::Compound(f.clone(), args.iter().map(|t| self.resolve(t)).collect())
+            },
+            // Lambdas and Applications can be left as is.
+            Term::Lambda(param, body) => {
+                Term::Lambda(*param, Box::new(self.resolve(body)))
+            },
+            Term::App(fun, arg) => {
+                Term::App(Box::new(self.resolve(fun)), Box::new(self.resolve(arg)))
+            },
+            _ => term.clone(),
+        }
+    }
+
+    /// Checks whether variable `var` occurs in `term`.
+    fn occurs_check(&mut self, var: usize, term: &Term) -> bool {
+        match self.resolve(term) {
+            Term::Var(v) => v == var,
+            Term::Compound(_, ref args) => args.iter().any(|t| self.occurs_check(var, t)),
+            Term::Lambda(param, ref body) => {
+                if param == var {
+                    false
+                } else {
+                    self.occurs_check(var, body)
+                }
+            },
+            Term::App(ref fun, ref arg) => self.occurs_check(var, fun) || self.occurs_check(var, arg),
+            _ => false,
+        }
+    }
+
+    /// Attempts to bind variable `var` to `term`. Performs an occurs check to avoid
+    /// binding a variable to a term that contains it.
+    pub fn bind(&mut self, var: usize, term: &Term) -> Result<(), MachineError> {
+        if self.occurs_check(var, term) {
+            Err(MachineError::UnificationFailed(format!(
+                "Occurs check failed: variable {} occurs in {:?}",
+                var, term
+            )))
+        } else {
+            // Save the binding.
+            self.parent.insert(var, term.clone());
+            Ok(())
         }
     }
 }

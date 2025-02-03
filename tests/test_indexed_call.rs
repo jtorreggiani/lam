@@ -1,17 +1,6 @@
-// tests/test_indexed_call.rs
-
 use lam::machine::{Instruction, Machine};
 use lam::term::Term;
 
-// Test for indexed clause selection.
-//
-// We simulate a predicate "p" with two clauses indexed by the first argument:
-//
-// Clause 1: When the key is Const(1), the clause sets register 0 to 10.
-// Clause 2: When the key is Const(2), the clause sets register 0 to 20.
-//
-// The test will perform an IndexedCall on predicate "p" using the content of register 0
-// as the key. We set register 0 to Const(2) so that it should choose Clause 2.
 #[test]
 fn test_indexed_call() {
     let code = vec![
@@ -28,11 +17,10 @@ fn test_indexed_call() {
     let mut machine = Machine::new(1, code);
     
     // Set up the index table:
-    // Register predicate "p" with an index:
-    // Clause 1: for key Const(1), at address 1.
-    machine.register_indexed_clause("p".to_string(), Term::Const(1), 1);
-    // Clause 2: for key Const(2), at address 3.
-    machine.register_indexed_clause("p".to_string(), Term::Const(2), 3);
+    // Clause 1: for key [Const(1)], at address 1.
+    machine.register_indexed_clause("p".to_string(), vec![Term::Const(1)], 1);
+    // Clause 2: for key [Const(2)], at address 3.
+    machine.register_indexed_clause("p".to_string(), vec![Term::Const(2)], 3);
     
     // Set register 0 to Const(2), which is the index key we want to use.
     machine.registers[0] = Some(Term::Const(2));
