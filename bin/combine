@@ -1,22 +1,22 @@
 #!/bin/bash
 
 # Create the combined file with a header
-echo "// Combined Rust source code from LAM project (including tests)" > docs/all_source.rs
-echo "// Generated on $(date)" >> docs/all_source.rs
-echo "" >> docs/all_source.rs
+echo "// Combined Rust source code from LAM project (including tests)" > docs/source.rs
+echo "// Generated on $(date)" >> docs/source.rs
+echo "" >> docs/source.rs
 
 # Function to add a file with header
 add_file() {
-    echo "// ============================================" >> docs/all_source.rs
-    echo "// File: $1" >> docs/all_source.rs
-    echo "// ============================================" >> docs/all_source.rs
-    echo "" >> docs/all_source.rs
-    cat "$1" >> docs/all_source.rs
-    echo "" >> docs/all_source.rs
+    echo "// ============================================" >> docs/source.rs
+    echo "// File: $1" >> docs/source.rs
+    echo "// ============================================" >> docs/source.rs
+    echo "" >> docs/source.rs
+    cat "$1" >> docs/source.rs
+    echo "" >> docs/source.rs
 }
 
 # Add source files in a specific order (mod.rs files first, then others)
-echo "// === Source Files ===" >> docs/all_source.rs
+echo "// === Source Files ===" >> docs/source.rs
 add_file src/lib.rs
 add_file src/machine/mod.rs
 add_file src/machine/machine.rs
@@ -30,8 +30,8 @@ add_file src/lambda.rs
 add_file src/main.rs
 
 # Add test files
-echo "" >> docs/all_source.rs
-echo "// === Test Files ===" >> docs/all_source.rs
+echo "" >> docs/source.rs
+echo "// === Test Files ===" >> docs/source.rs
 add_file tests/test_arithmetic.rs
 add_file tests/test_backtracking_constants.rs
 add_file tests/test_backtracking_variables.rs
@@ -49,4 +49,4 @@ add_file tests/test_tail_call.rs
 add_file tests/test_term.rs
 add_file tests/test_unification.rs
 
-echo "Combined Rust source code (including tests) has been written to docs/all_source.rs"
+echo "Combined Rust source code (including tests) has been written to docs/source.rs"
