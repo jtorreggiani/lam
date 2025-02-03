@@ -47,12 +47,14 @@ fn test_backtracking_variables() {
       Instruction::Fail,
       // Step 4: Second alternative: GetConst reg0, 300.
       Instruction::GetConst { register: 0, value: 300 },
-  ];
+    ];
 
-  let mut machine = Machine::new(1, code);
-  let _ = machine.run();
-  // "X" should be bound to 300.
-  assert_eq!(machine.substitution.get(&0), Some(&Term::Const(300)));
-  assert_eq!(machine.trail.len(), 1);
-  assert_eq!(machine.choice_stack.len(), 0);
+    let mut machine = Machine::new(1, code);
+    let _ = machine.run();
+
+    // Check the union-find binding for variable 0.
+    assert_eq!(machine.uf.resolve(&Term::Var(0)), Term::Const(300));
+    // Since we're now using union-find exclusively, we no longer push trail entries.
+    assert_eq!(machine.trail.len(), 0);
+    assert_eq!(machine.choice_stack.len(), 0);
 }

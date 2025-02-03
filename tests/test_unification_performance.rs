@@ -16,7 +16,7 @@ fn benchmark_unify_identical_terms() {
     let start = Instant::now();
     for _ in 0..iterations {
         // Since both terms are identical, the early exit should trigger.
-        assert!(machine.unify(&term, &term));
+        assert!(machine.unify(&term, &term).is_ok());
     }
     let duration = start.elapsed();
     println!(

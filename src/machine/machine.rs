@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use crate::term::Term;
+use crate::union_find::UnionFind;
 use crate::arithmetic;
 
 use super::{
@@ -57,6 +58,8 @@ pub struct Machine {
     pub index_table: HashMap<String, HashMap<Term, Vec<usize>>>,
     /// Mapping from variable unique id to its original string name.
     pub variable_names: HashMap<usize, String>,
+    /// Union-find data structure for indexing.
+    pub uf: UnionFind,
 }
 
 impl Machine {
@@ -66,43 +69,15 @@ impl Machine {
             registers: vec![None; num_registers],
             code,
             pc: 0,
-            substitution: HashMap::new(),
-            control_stack: Vec::new(),
-            predicate_table: HashMap::new(),
             choice_stack: Vec::new(),
-            trail: Vec::new(),
+            control_stack: Vec::new(),
             environment_stack: Vec::new(),
             index_table: HashMap::new(),
+            predicate_table: HashMap::new(),
+            substitution: HashMap::new(),
+            trail: Vec::new(),
+            uf: UnionFind::new(),
             variable_names: HashMap::new(),
-        }
-    }
-
-    /// Helper function to bind a variable (by its unique id) to a term.
-    /// Returns false if the occurs check fails; otherwise, returns true after performing the binding.
-    fn bind_variable(&mut self, var: &usize, term: &Term) -> bool {
-        if self.occurs_check(var, term) {
-            return false;
-        }
-        let prev = self.substitution.get(var).cloned();
-        self.trail.push(TrailEntry { variable: *var, previous_value: prev });
-        self.substitution.insert(*var, term.clone());
-        true
-    }
-
-    /// Returns true if `var` occurs anywhere inside `term`.
-    fn occurs_check(&self, var: &usize, term: &Term) -> bool {
-        match term {
-            Term::Var(v) => v == var,
-            Term::Const(_) => false,
-            Term::Compound(_, args) => args.iter().any(|arg| self.occurs_check(var, arg)),
-            Term::Lambda(param, body) => {
-                if param == var {
-                    false
-                } else {
-                    self.occurs_check(var, body)
-                }
-            },
-            Term::App(fun, arg) => self.occurs_check(var, fun) || self.occurs_check(var, arg),
         }
     }
 
@@ -120,47 +95,49 @@ impl Machine {
             .push(address);
     }
 
-    /// Resolve a term to its current bound value, if any.
-    fn resolve(&self, term: &Term) -> Term {
-        match term {
-            Term::Var(v) => {
-                if let Some(bound) = self.substitution.get(v) {
-                    self.resolve(bound)
-                } else {
-                    term.clone()
-                }
-            }
-            _ => term.clone(),
-        }
-    }
-
     /// Unify two terms.
     /// If unification fails, returns false.
-    pub fn unify(&mut self, t1: &Term, t2: &Term) -> bool {
-        let term1 = self.resolve(t1);
-        let term2 = self.resolve(t2);
+    pub fn unify(&mut self, t1: &Term, t2: &Term) -> Result<(), MachineError> {
+        let term1 = self.uf.resolve(t1);
+        let term2 = self.uf.resolve(t2);
 
         if term1 == term2 {
-            return true;
+            return Ok(());
         }
 
-        match (term1, term2) {
-            (Term::Const(a), Term::Const(b)) => a == b,
-            (Term::Var(ref v), ref other) => self.bind_variable(v, other),
-            (ref other, Term::Var(ref v)) => self.bind_variable(v, other),
-            (Term::Compound(functor1, args1), Term::Compound(functor2, args2)) => {
-                if functor1 == functor2 && args1.len() == args2.len() {
-                    for (a, b) in args1.iter().zip(args2.iter()) {
-                        if !self.unify(a, b) {
-                            return false;
-                        }
-                    }
-                    true
+        match (term1.clone(), term2.clone()) {
+            (crate::term::Term::Const(a), crate::term::Term::Const(b)) => {
+                if a == b {
+                    Ok(())
                 } else {
-                    false
+                    Err(MachineError::UnificationFailed(format!(
+                        "Constants do not match: {} vs {}",
+                        a, b
+                    )))
                 }
             },
-            _ => false,
+            (crate::term::Term::Var(v), other) => {
+                self.uf.bind(v, &other)
+            },
+            (other, crate::term::Term::Var(v)) => {
+                self.uf.bind(v, &other)
+            },
+            (crate::term::Term::Compound(f1, args1), crate::term::Term::Compound(f2, args2)) => {
+                if f1 != f2 || args1.len() != args2.len() {
+                    return Err(MachineError::UnificationFailed(format!(
+                        "Compound term mismatch: {} vs {}",
+                        f1, f2
+                    )));
+                }
+                for (a, b) in args1.iter().zip(args2.iter()) {
+                    let _ = self.unify(a, b).is_ok();
+                }
+                Ok(())
+            },
+            (t1, t2) => Err(MachineError::UnificationFailed(format!(
+                "Failed to unify {:?} with {:?}",
+                t1, t2
+            ))),
         }
     }
 
@@ -196,11 +173,10 @@ impl Machine {
                     return Err(MachineError::RegisterOutOfBounds(register));
                 }
                 if let Some(term) = self.registers[register].clone() {
-                    let goal = Term::Const(value);
-                    if !self.unify(&term, &goal) {
+                    if self.unify(&term, &Term::Const(value)).is_err() {
                         return Err(MachineError::UnificationFailed(format!(
                             "Cannot unify {:?} with {:?}",
-                            term, goal
+                            term, Term::Const(value)
                         )));
                     }
                     Ok(())
@@ -216,7 +192,7 @@ impl Machine {
                 self.variable_names.entry(var_id).or_insert(name);
                 if let Some(term) = self.registers[register].clone() {
                     let goal = Term::Var(var_id);
-                    if !self.unify(&goal, &term) {
+                    if !self.unify(&goal, &term).is_ok() {
                         return Err(MachineError::UnificationFailed(format!(
                             "Cannot unify {:?} with {:?}",
                             goal, term
@@ -251,6 +227,7 @@ impl Machine {
                         saved_trail_len: self.trail.len(),
                         saved_control_stack: self.control_stack.clone(),
                         alternative_clauses,
+                        saved_uf: self.uf.clone(), // Save the union–find state.
                     };
                     self.choice_stack.push(cp);
                     self.pc = jump_to;
@@ -271,10 +248,11 @@ impl Machine {
                     saved_registers: self.registers.clone(),
                     saved_substitution: self.substitution.clone(),
                     saved_trail_len: self.trail.len(),
-                    // Save the entire control stack at this point.
                     saved_control_stack: self.control_stack.clone(),
                     alternative_clauses: Some(vec![alternative]),
+                    saved_uf: self.uf.clone(), // Save the union–find state.
                 };
+                
                 self.choice_stack.push(cp);
                 Ok(())
             },
@@ -316,7 +294,7 @@ impl Machine {
                         if let Some(term) = env[index].clone() {
                             if register < self.registers.len() {
                                 if let Some(reg_term) = self.registers[register].clone() {
-                                    if !self.unify(&reg_term, &term) {
+                                    if !self.unify(&reg_term, &term).is_ok() {
                                         return Err(MachineError::UnificationFailed(format!(
                                             "Cannot unify {:?} with {:?}",
                                             reg_term, term
@@ -355,11 +333,12 @@ impl Machine {
                             }
                         }
                     }
-                    // Restore registers, substitution, and control stack.
+                    // Restore registers, substitution, control stack, and union–find state.
                     self.registers = cp.saved_registers.clone();
                     self.substitution = cp.saved_substitution.clone();
                     self.control_stack = cp.saved_control_stack.clone();
-                    
+                    self.uf = cp.saved_uf.clone();
+            
                     if let Some(ref mut alternatives) = cp.alternative_clauses {
                         if let Some(next_addr) = alternatives.pop() {
                             if !alternatives.is_empty() {
@@ -417,9 +396,9 @@ impl Machine {
                                     saved_registers: self.registers.clone(),
                                     saved_substitution: self.substitution.clone(),
                                     saved_trail_len: self.trail.len(),
-                                    // Save the entire control stack at this point.
                                     saved_control_stack: self.control_stack.clone(),
                                     alternative_clauses,
+                                    saved_uf: self.uf.clone(), // Save the union–find state.
                                 };
                                 self.choice_stack.push(cp);
                                 self.pc = jump_to;
@@ -453,9 +432,9 @@ impl Machine {
                             saved_registers: self.registers.clone(),
                             saved_substitution: self.substitution.clone(),
                             saved_trail_len: self.trail.len(),
-                            // Save the entire control stack at this point.
                             saved_control_stack: self.control_stack.clone(),
                             alternative_clauses,
+                            saved_uf: self.uf.clone(), // Save the union–find state.
                         };
                         self.choice_stack.push(cp);
                         self.pc = jump_to;

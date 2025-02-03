@@ -16,14 +16,13 @@ fn test_compound_unification() {
     if let Some(compound_term) = machine.registers[0].clone() {
         if let Term::Compound(_, args) = compound_term {
             let success = machine.unify(&Term::Var(2), &args[1]);
-            assert!(success, "Unification of the compound subterm failed");
+            assert!(success.is_ok(), "Unification of the compound subterm failed");
         } else {
             panic!("Register 0 does not contain a compound term");
         }
     } else {
         panic!("Register 0 is empty");
     }
-    
-    let binding = machine.substitution.get(&2).cloned();
-    assert_eq!(binding, Some(Term::Var(1)));
+
+    assert_eq!(machine.uf.resolve(&Term::Var(2)), Term::Var(1));
 }

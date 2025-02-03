@@ -60,8 +60,8 @@ fn test_get_var_unification() {
     machine.run().unwrap();
 
     assert_eq!(machine.registers[0], Some(Term::Var(0)));
-    let binding = machine.substitution.get(&1).cloned();
-    assert_eq!(binding, Some(Term::Var(0)));
+
+    assert_eq!(machine.uf.resolve(&Term::Var(1)), Term::Var(0));
 }
 
 #[test]

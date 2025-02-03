@@ -11,7 +11,8 @@ pub struct ChoicePoint {
     pub saved_registers: Vec<Option<Term>>,
     pub saved_substitution: HashMap<usize, Term>,
     pub saved_trail_len: usize,
-    // Save a snapshot of the control stack.
     pub saved_control_stack: Vec<Frame>,
     pub alternative_clauses: Option<Vec<usize>>,
+    // NEW: Save a snapshot of the union–find state.
+    pub saved_uf: crate::union_find::UnionFind,
 }
