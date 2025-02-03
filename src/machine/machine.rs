@@ -249,6 +249,7 @@ impl Machine {
                         saved_registers: self.registers.clone(),
                         saved_substitution: self.substitution.clone(),
                         saved_trail_len: self.trail.len(),
+                        saved_control_stack: self.control_stack.clone(),
                         alternative_clauses,
                     };
                     self.choice_stack.push(cp);
@@ -270,7 +271,8 @@ impl Machine {
                     saved_registers: self.registers.clone(),
                     saved_substitution: self.substitution.clone(),
                     saved_trail_len: self.trail.len(),
-                    // Record the alternative clause address provided by the instruction.
+                    // Save the entire control stack at this point.
+                    saved_control_stack: self.control_stack.clone(),
                     alternative_clauses: Some(vec![alternative]),
                 };
                 self.choice_stack.push(cp);
@@ -340,7 +342,7 @@ impl Machine {
             Instruction::Fail => {
                 // Attempt to backtrack by checking available choice points.
                 while let Some(mut cp) = self.choice_stack.pop() {
-                    // Restore the trail to the saved length.
+                    // Restore trail to saved length.
                     while self.trail.len() > cp.saved_trail_len {
                         if let Some(entry) = self.trail.pop() {
                             match entry.previous_value {
@@ -353,14 +355,13 @@ impl Machine {
                             }
                         }
                     }
-                    // Restore registers and substitution environment by cloning.
+                    // Restore registers, substitution, and control stack.
                     self.registers = cp.saved_registers.clone();
                     self.substitution = cp.saved_substitution.clone();
-            
-                    // Check if this choice point has any alternative clause addresses.
+                    self.control_stack = cp.saved_control_stack.clone();
+                    
                     if let Some(ref mut alternatives) = cp.alternative_clauses {
                         if let Some(next_addr) = alternatives.pop() {
-                            // If further alternatives remain, push the updated choice point back.
                             if !alternatives.is_empty() {
                                 self.choice_stack.push(cp);
                             }
@@ -368,7 +369,6 @@ impl Machine {
                             return Ok(());
                         }
                     }
-                    // If no alternatives remain for this choice point, try the next one.
                 }
                 // If no choice point with alternatives is found, signal failure.
                 Err(MachineError::NoChoicePoint)
@@ -417,6 +417,8 @@ impl Machine {
                                     saved_registers: self.registers.clone(),
                                     saved_substitution: self.substitution.clone(),
                                     saved_trail_len: self.trail.len(),
+                                    // Save the entire control stack at this point.
+                                    saved_control_stack: self.control_stack.clone(),
                                     alternative_clauses,
                                 };
                                 self.choice_stack.push(cp);
@@ -451,6 +453,8 @@ impl Machine {
                             saved_registers: self.registers.clone(),
                             saved_substitution: self.substitution.clone(),
                             saved_trail_len: self.trail.len(),
+                            // Save the entire control stack at this point.
+                            saved_control_stack: self.control_stack.clone(),
                             alternative_clauses,
                         };
                         self.choice_stack.push(cp);
