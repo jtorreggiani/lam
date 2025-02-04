@@ -23,7 +23,6 @@ add_file src/machine/machine.rs
 add_file src/machine/frame.rs
 add_file src/machine/instruction.rs
 add_file src/machine/choice_point.rs
-add_file src/machine/trail.rs
 add_file src/arithmetic.rs
 add_file src/term.rs
 add_file src/lambda.rs
