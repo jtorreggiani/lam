@@ -308,7 +308,7 @@ impl Machine {
     }
 
     fn exec_arithmetic_is(&mut self, target: usize, expression: arithmetic::Expression) -> Result<(), MachineError> {
-        let result = arithmetic::evaluate(&expression);
+        let result = arithmetic::evaluate(&expression, &self.registers);
         if target < self.registers.len() {
             self.registers[target] = Some(Term::Const(result));
             Ok(())
