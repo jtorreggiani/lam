@@ -6,7 +6,7 @@ use super::{
     instruction::Instruction,
     frame::Frame,
     choice_point::ChoicePoint,
-    trail::TrailEntry,
+    // Note: trail module is no longer used.
 };
 
 /// The set of errors that can occur during execution of the LAM.
@@ -45,7 +45,7 @@ pub struct Machine {
     pub control_stack: Vec<Frame>,
     pub predicate_table: HashMap<String, Vec<usize>>,
     pub choice_stack: Vec<ChoicePoint>,
-    pub trail: Vec<TrailEntry>,
+    // Removed: trail field is no longer needed.
     pub environment_stack: Vec<Vec<Option<Term>>>,
     // Updated: index_table now uses a vector of terms as the key for multi-argument indexing.
     pub index_table: HashMap<String, HashMap<Vec<Term>, Vec<usize>>>,
@@ -69,7 +69,7 @@ impl Machine {
             index_table: HashMap::new(),
             predicate_table: HashMap::new(),
             substitution: HashMap::new(),
-            trail: Vec::new(),
+            // Removed: trail field.
             uf: UnionFind::new(),
             variable_names: HashMap::new(),
             verbose: false,
@@ -260,7 +260,6 @@ impl Machine {
                 saved_pc: self.pc,
                 saved_registers: self.registers.clone(),
                 saved_substitution: self.substitution.clone(),
-                saved_trail_len: self.trail.len(),
                 saved_control_stack: self.control_stack.clone(),
                 alternative_clauses,
                 saved_uf: self.uf.clone(),
@@ -285,7 +284,6 @@ impl Machine {
             saved_pc: self.pc,
             saved_registers: self.registers.clone(),
             saved_substitution: self.substitution.clone(),
-            saved_trail_len: self.trail.len(),
             saved_control_stack: self.control_stack.clone(),
             alternative_clauses: Some(vec![alternative]),
             saved_uf: self.uf.clone(),
@@ -358,16 +356,14 @@ impl Machine {
         }
     }
 
+    /// Executes a failure and triggers backtracking.
+    /// 
+    /// **Note:** The trail mechanism has been removed in favor of rolling back the union-find state.
+    /// Executes a failure and triggers backtracking.
+    /// 
+    /// **Note:** The trail mechanism has been removed in favor of rolling back the union-find state.
     fn exec_fail(&mut self) -> Result<(), MachineError> {
         while let Some(mut cp) = self.choice_stack.pop() {
-            while self.trail.len() > cp.saved_trail_len {
-                if let Some(entry) = self.trail.pop() {
-                    match entry.previous_value {
-                        Some(prev_val) => { self.substitution.insert(entry.variable, prev_val); },
-                        None => { self.substitution.remove(&entry.variable); }
-                    }
-                }
-            }
             self.registers = cp.saved_registers.clone();
             self.substitution = cp.saved_substitution.clone();
             self.control_stack = cp.saved_control_stack.clone();
@@ -428,7 +424,6 @@ impl Machine {
                             saved_pc: self.pc,
                             saved_registers: self.registers.clone(),
                             saved_substitution: self.substitution.clone(),
-                            saved_trail_len: self.trail.len(),
                             saved_control_stack: self.control_stack.clone(),
                             alternative_clauses,
                             saved_uf: self.uf.clone(),
@@ -473,7 +468,6 @@ impl Machine {
                         saved_pc: self.pc,
                         saved_registers: self.registers.clone(),
                         saved_substitution: self.substitution.clone(),
-                        saved_trail_len: self.trail.len(),
                         saved_control_stack: self.control_stack.clone(),
                         alternative_clauses,
                         saved_uf: self.uf.clone(),
@@ -505,7 +499,6 @@ impl Machine {
                     saved_pc: self.pc,
                     saved_registers: self.registers.clone(),
                     saved_substitution: self.substitution.clone(),
-                    saved_trail_len: self.trail.len(),
                     saved_control_stack: self.control_stack.clone(),
                     alternative_clauses,
                     saved_uf: self.uf.clone(),

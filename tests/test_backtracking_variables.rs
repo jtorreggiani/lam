@@ -3,7 +3,7 @@
 use lam::machine::{Instruction, Machine};
 use lam::term::Term;
 
-/// Test for validating the LAM's trail mechanism for variable bindings during backtracking.
+/// Test for validating the LAM's union-find mechanism for variable bindings during backtracking.
 ///
 /// This test simulates the following Prolog behavior:
 ///
@@ -22,17 +22,15 @@ use lam::term::Term;
 ///
 /// Step-by-step:
 /// 1. Register 0 is set to variable X (unbound).
-/// 2. A Choice instruction saves the state, including an empty trail (trail length 0).
-/// 3. GetConst reg0, 100 unifies X with 100, pushing a trail entry. (Trail length becomes 1.)
+/// 2. A Choice instruction saves the state.
+/// 3. GetConst reg0, 100 unifies X with 100.
 /// 4. Fail is executed, causing backtracking:
-///    - The trail is unwound back to the saved trail length (0).
-///    - The saved substitution (with X unbound) is restored.
-/// 5. Then, GetConst reg0, 300 unifies X with 300, pushing a new trail entry. (Trail length becomes 1.)
+///    - The union-find state is rolled back to the saved state.
+/// 5. Then, GetConst reg0, 300 unifies X with 300.
 /// 6. Finally, the substitution binds X to 300.
-/// 
+///
 /// We then verify that:
-/// - The substitution environment binds "X" to Const(300).
-/// - The trail length is 1 (since the final unification pushed one trail entry).
+/// - The union-find binding for variable X is updated to Const(300).
 /// - The choice stack is empty.
 #[test]
 fn test_backtracking_variables() {
@@ -54,7 +52,6 @@ fn test_backtracking_variables() {
 
     // Check the union-find binding for variable 0.
     assert_eq!(machine.uf.resolve(&Term::Var(0)), Term::Const(300));
-    // Since we're now using union-find exclusively, we no longer push trail entries.
-    assert_eq!(machine.trail.len(), 0);
+    // Since the trail is no longer used, we don't check its length.
     assert_eq!(machine.choice_stack.len(), 0);
 }
