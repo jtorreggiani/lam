@@ -1,80 +1,75 @@
+// File: src/union_find.rs
+
 use std::collections::HashMap;
 use crate::term::Term;
 use crate::machine::MachineError;
 
+/// A simple union-find structure to manage variable bindings.
+///
+/// This implementation supports recursive resolution and binding of variables.
+/// For backtracking, the entire union-find state is cloned, so incremental rollback is not required.
+///
+/// # Examples
+/// ```
+/// use lam::union_find::UnionFind;
+/// use lam::term::Term;
+/// use lam::machine::MachineError;
+///
+/// let mut uf = UnionFind::new();
+/// // Initially, variable 0 is unbound.
+/// assert_eq!(uf.resolve(&Term::Var(0)), Term::Var(0));
+/// 
+/// // Bind variable 0 to constant 42.
+/// uf.bind(0, &Term::Const(42)).unwrap();
+/// assert_eq!(uf.resolve(&Term::Var(0)), Term::Const(42));
+/// ```
 #[derive(Debug, Clone)]
 pub struct UnionFind {
-    // Mapping from variable id to the term it is bound to.
-    pub parent: HashMap<usize, Term>,
+    /// Maps variable IDs to their binding term.
+    bindings: HashMap<usize, Term>,
 }
 
 impl UnionFind {
+    /// Creates a new, empty union-find.
     pub fn new() -> Self {
         Self {
-            parent: HashMap::new(),
+            bindings: HashMap::new(),
         }
     }
 
-    /// Recursively resolves a term. If it is a variable and has a binding,
-    /// follow the chain and apply path compression.
-    pub fn resolve(&mut self, term: &Term) -> Term {
+    /// Recursively resolves a term. If the term is a variable and is bound,
+    /// returns its final binding. Otherwise, returns the term itself.
+    pub fn resolve(&self, term: &Term) -> Term {
         match term {
-            Term::Var(var_id) => {
-                if let Some(binding) = self.parent.get(var_id) {
-                    // Clone the binding so the immutable borrow ends.
-                    let binding = binding.clone();
-                    let resolved = self.resolve(&binding);
-                    // Path compression: update the binding to the final resolved term.
-                    self.parent.insert(*var_id, resolved.clone());
-                    resolved
+            Term::Var(v) => {
+                if let Some(binding) = self.bindings.get(v) {
+                    self.resolve(binding)
                 } else {
                     term.clone()
                 }
-            },
-            // For compounds, resolve all subterms.
-            Term::Compound(f, args) => {
-                Term::Compound(f.clone(), args.iter().map(|t| self.resolve(t)).collect())
-            },
-            // Lambdas and Applications can be left as is.
-            Term::Lambda(param, body) => {
-                Term::Lambda(*param, Box::new(self.resolve(body)))
-            },
-            Term::App(fun, arg) => {
-                Term::App(Box::new(self.resolve(fun)), Box::new(self.resolve(arg)))
             },
             _ => term.clone(),
         }
     }
 
-    /// Checks whether variable `var` occurs in `term`.
-    fn occurs_check(&mut self, var: usize, term: &Term) -> bool {
-        match self.resolve(term) {
-            Term::Var(v) => v == var,
-            Term::Compound(_, ref args) => args.iter().any(|t| self.occurs_check(var, t)),
-            Term::Lambda(param, ref body) => {
-                if param == var {
-                    false
-                } else {
-                    self.occurs_check(var, body)
-                }
-            },
-            Term::App(ref fun, ref arg) => self.occurs_check(var, fun) || self.occurs_check(var, arg),
-            _ => false,
-        }
-    }
-
-    /// Attempts to bind variable `var` to `term`. Performs an occurs check to avoid
-    /// binding a variable to a term that contains it.
+    /// Binds a variable to a term. The term is first resolved recursively.
+    ///
+    /// # Parameters
+    /// - `var`: The variable ID to bind.
+    /// - `term`: The term to bind to.
+    ///
+    /// # Returns
+    /// - `Ok(())` if the binding succeeds.
+    /// - `Err(MachineError::UnificationFailed(...))` if the binding is inconsistent (currently not implemented).
     pub fn bind(&mut self, var: usize, term: &Term) -> Result<(), MachineError> {
-        if self.occurs_check(var, term) {
-            Err(MachineError::UnificationFailed(format!(
-                "Occurs check failed: variable {} occurs in {:?}",
-                var, term
-            )))
-        } else {
-            // Save the binding.
-            self.parent.insert(var, term.clone());
-            Ok(())
+        let resolved_term = self.resolve(term);
+        // Prevent self-binding loops.
+        if let Term::Var(v) = &resolved_term {
+            if *v == var {
+                return Ok(())
+            }
         }
+        self.bindings.insert(var, resolved_term);
+        Ok(())
     }
 }
