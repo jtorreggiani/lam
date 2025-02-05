@@ -1,0 +1,28 @@
+# Complex LAM Program Example
+#
+# Prolog equivalent:
+#
+# test_complex :-
+#   X = 10,
+#   % Build a compound term f(X,20)
+#   Compound = f(X,20),
+#   % Compute two arithmetic values (e.g., Z = 3+4 and W = 10*7)
+#   Z is 3+4,
+#   W is 10*7,
+#   % Create a choice point that will force backtracking:
+#   %   First alternative: A = 100, then fail.
+#   %   Second alternative: A = 200.
+#   (  A = 100, fail
+#   ;  A = 200 ),
+#   print.
+PutConst 0 10
+PutVar 1 0 "X"
+PutConst 3 20
+BuildCompound 2 f 1 3
+ArithmeticIs 4 3 + 4
+ArithmeticIs 5 10 * 7
+Choice 10
+PutConst 6 100
+Fail
+PutConst 6 200
+Call print_registers

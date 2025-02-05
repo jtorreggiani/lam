@@ -1,0 +1,26 @@
+AssertClause edge 9
+AssertClause edge 12
+AssertClause edge 15
+AssertClause path 18
+AssertClause path 20
+PutConst 0 1
+PutConst 1 3
+Call path
+Proceed
+PutConst 0 1
+PutConst 1 3
+Proceed
+PutConst 0 1
+PutConst 1 2
+Proceed
+PutConst 0 2
+PutConst 1 3
+Proceed
+Call edge
+Proceed
+PutVar 2 0 "Z"
+Call edge
+Call path
+Proceed
+Call print
+Call print_subst

@@ -94,6 +94,7 @@ impl Machine {
         };
         // Register an example built-in predicate "print"
         machine.builtins.insert("print".to_string(), Machine::builtin_print);
+        machine.builtins.insert("print_subst".to_string(), Machine::builtin_print_subst);
         machine
     }
 
@@ -104,10 +105,34 @@ impl Machine {
         // Print only registers that contain a value.
         for (i, reg) in self.registers.iter().enumerate() {
             if let Some(term) = reg {
-                println!("Reg {:>3}: {:?}", i, term);
+                match term {
+                    Term::Var(id) => {
+                        // Clone the variable name so that we have an owned String.
+                        let name = self.variable_names.get(id).cloned().unwrap_or_default();
+                        println!("Reg {:>3}: Var({}) \"{}\"", i, id, name);
+                    }
+                    _ => println!("Reg {:>3}: {:?}", i, term),
+                }
             }
         }
         println!("-------------------------");
+        Ok(())
+    }
+
+    /// Built-in predicate that prints the current substitution in a human-readable format.
+    #[inline(always)]
+    fn builtin_print_subst(&mut self) -> Result<(), MachineError> {
+        println!("--- Current Substitution ---");
+        if self.substitution.is_empty() {
+            println!("(no bindings)");
+        } else {
+            for (var_id, term) in &self.substitution {
+                // Look up the variable's name if available.
+                let var_name = self.variable_names.get(var_id).cloned().unwrap_or_default();
+                println!("Variable {} (id {}) = {:?}", if var_name.is_empty() { format!("_{}", var_id) } else { var_name }, var_id, term);
+            }
+        }
+        println!("----------------------------");
         Ok(())
     }
 
