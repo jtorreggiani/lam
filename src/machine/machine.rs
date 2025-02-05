@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 use crate::term::Term;
 use crate::union_find::UnionFind;
+use log::{debug, error};
+use thiserror::Error;
+
 use crate::arithmetic;
 use super::{
     instruction::Instruction,
@@ -10,25 +13,38 @@ use super::{
 };
 
 /// The set of errors that can occur during execution of the LAM.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum MachineError {
+    #[error("Register {0} is out of bounds.")]
     RegisterOutOfBounds(usize),
+    #[error("Register {0} is uninitialized.")]
     UninitializedRegister(usize),
+    #[error("Unification failed: {0}")]
     UnificationFailed(String),
+    #[error("Environment missing.")]
     EnvironmentMissing,
+    #[error("Predicate not found: {0}")]
     PredicateNotFound(String),
+    #[error("Predicate clause not found: {0}")]
     PredicateClauseNotFound(String),
+    #[error("No choice point available.")]
     NoChoicePoint,
+    #[error("Structure mismatch: expected {expected_functor}/{expected_arity} but found {found_functor}/{found_arity}.")]
     StructureMismatch {
         expected_functor: String,
         expected_arity: usize,
         found_functor: String,
         found_arity: usize,
     },
+    #[error("Term in register {0} is not a compound term.")]
     NotACompoundTerm(usize),
-    NoIndexedClause(String, Term),
-    NoIndexEntry(String, Term),
+    #[error("No indexed clause for predicate {0} with key {1:?}.")]
+    NoIndexedClause(String, crate::term::Term),
+    #[error("No index entry for predicate {0} with key {1:?}.")]
+    NoIndexEntry(String, crate::term::Term),
+    #[error("Predicate {0} is not in the index.")]
     PredicateNotInIndex(String),
+    #[error("No more instructions.")]
     NoMoreInstructions,
 }
 
@@ -89,10 +105,10 @@ impl Machine {
     /// Debug helper: if verbose, print the current PC and instruction.
     fn trace(&self, instr: &Instruction) {
         if self.verbose {
-            println!("PC {}: {:?}", self.pc - 1, instr);
-            println!("Registers: {:?}", self.registers);
+            debug!("PC {}: {:?}", self.pc - 1, instr);
+            debug!("Registers: {:?}", self.registers);
         }
-    }
+    }    
 
     /// Helper to update the index table when retracting a clause.
     fn update_index_table_on_retract(&mut self, predicate: &str, clause_address: usize) {
@@ -306,7 +322,7 @@ impl Machine {
     }
 
     fn exec_arithmetic_is(&mut self, target: usize, expression: arithmetic::Expression) -> Result<(), MachineError> {
-        let result = arithmetic::evaluate(&expression, &self.registers);
+        let result = arithmetic::evaluate(&expression, &self.registers)?;
         if target < self.registers.len() {
             self.registers[target] = Some(Term::Const(result));
             Ok(())

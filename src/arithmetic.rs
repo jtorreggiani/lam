@@ -1,4 +1,5 @@
 use crate::term::Term;
+use crate::machine::MachineError;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
@@ -10,21 +11,19 @@ pub enum Expression {
     Div(Box<Expression>, Box<Expression>),
 }
 
-pub fn evaluate(expr: &Expression, registers: &[Option<Term>]) -> i32 {
-  match expr {
-      Expression::Const(n) => *n,
-      Expression::Var(idx) => {
-          // In this example we assume that the register stores a constant.
-          // In a robust implementation you’d need to resolve variables properly.
-          if let Some(Term::Const(val)) = registers.get(*idx).and_then(|opt| opt.as_ref()) {
-              *val
-          } else {
-              panic!("Register {} does not contain a constant", idx)
-          }
-      },
-      Expression::Add(e1, e2) => evaluate(e1, registers) + evaluate(e2, registers),
-      Expression::Sub(e1, e2) => evaluate(e1, registers) - evaluate(e2, registers),
-      Expression::Mul(e1, e2) => evaluate(e1, registers) * evaluate(e2, registers),
-      Expression::Div(e1, e2) => evaluate(e1, registers) / evaluate(e2, registers),
-  }
+pub fn evaluate(expr: &Expression, registers: &[Option<Term>]) -> Result<i32, MachineError> {
+    match expr {
+        Expression::Const(n) => Ok(*n),
+        Expression::Var(idx) => {
+            if let Some(Term::Const(val)) = registers.get(*idx).and_then(|opt| opt.as_ref()) {
+                Ok(*val)
+            } else {
+                Err(MachineError::UninitializedRegister(*idx))
+            }
+        },
+        Expression::Add(e1, e2) => Ok(evaluate(e1, registers)? + evaluate(e2, registers)?),
+        Expression::Sub(e1, e2) => Ok(evaluate(e1, registers)? - evaluate(e2, registers)?),
+        Expression::Mul(e1, e2) => Ok(evaluate(e1, registers)? * evaluate(e2, registers)?),
+        Expression::Div(e1, e2) => Ok(evaluate(e1, registers)? / evaluate(e2, registers)?),
+    }
 }

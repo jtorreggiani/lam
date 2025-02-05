@@ -2,9 +2,6 @@ use lam::machine::{Instruction, Machine};
 use lam::term::Term;
 use lam::arithmetic::{Expression, evaluate};
 
-// Test for the ArithmeticIs instruction.
-// This test simulates evaluating the expression (3 + 4) * 2 and storing the result
-// in register 0. The expected result is 14.
 #[test]
 fn test_arithmetic_is() {
     let code = vec![
@@ -30,7 +27,7 @@ fn test_arithmetic_is() {
 fn test_evaluate_const() {
     let expr = Expression::Const(42);
     // Pass an empty slice because the expression does not contain any variables.
-    assert_eq!(evaluate(&expr, &[]), 42);
+    assert_eq!(evaluate(&expr, &[]).unwrap(), 42);
 }
 
 #[test]
@@ -40,7 +37,7 @@ fn test_evaluate_add() {
         Box::new(Expression::Const(4))
     );
     // No variables here, so we pass an empty slice.
-    assert_eq!(evaluate(&expr, &[]), 7);
+    assert_eq!(evaluate(&expr, &[]).unwrap(), 7);
 }
 
 #[test]
@@ -57,5 +54,6 @@ fn test_evaluate_complex() {
         ))
     );
     // Pass an empty slice since the expression has no variable references.
-    assert_eq!(evaluate(&expr, &[]), 32);
+    assert_eq!(evaluate(&expr, &[]).unwrap(), 32);
 }
+
