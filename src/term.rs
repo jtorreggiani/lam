@@ -1,5 +1,3 @@
-// File: src/term.rs
-
 /// Represents the various kinds of terms in the LAM.
 ///
 /// This definition has been extended to support higher-order logic, probabilistic programming,

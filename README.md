@@ -66,3 +66,9 @@ To run the tests:
 ```bash
 cargo test
 ```
+
+Run the hello world program
+
+```bash
+cargo run examples/hello.lam
+```

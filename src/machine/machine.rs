@@ -74,6 +74,7 @@ pub struct Machine {
 }
 
 impl Machine {
+    #[inline(always)]
     pub fn new(num_registers: usize, code: Vec<Instruction>) -> Self {
         let mut machine = Self {
             registers: vec![None; num_registers],
@@ -97,12 +98,21 @@ impl Machine {
     }
 
     /// Built-in predicate example: prints the current registers.
+    #[inline(always)]
     fn builtin_print(&mut self) -> Result<(), MachineError> {
-        println!("Builtin print: registers = {:?}", self.registers);
+        println!("--- Machine Registers ---");
+        // Print only registers that contain a value.
+        for (i, reg) in self.registers.iter().enumerate() {
+            if let Some(term) = reg {
+                println!("Reg {:>3}: {:?}", i, term);
+            }
+        }
+        println!("-------------------------");
         Ok(())
     }
 
     /// Debug helper: if verbose, print the current PC and instruction.
+    #[inline(always)]
     fn trace(&self, instr: &Instruction) {
         if self.verbose {
             debug!("PC {}: {:?}", self.pc - 1, instr);
@@ -111,6 +121,7 @@ impl Machine {
     }    
 
     /// Helper to update the index table when retracting a clause.
+    #[inline(always)]
     fn update_index_table_on_retract(&mut self, predicate: &str, clause_address: usize) {
         if let Some(index_map) = self.index_table.get_mut(predicate) {
             // Iterate over keys and remove the clause_address if found.
@@ -124,12 +135,14 @@ impl Machine {
 
     /// Registers an indexed clause for the given predicate.
     /// Now accepts a key as a vector of terms for multi-argument indexing.
+    #[inline(always)]
     pub fn register_indexed_clause(&mut self, predicate: String, key: Vec<Term>, address: usize) {
         let entry = self.index_table.entry(predicate).or_insert_with(HashMap::new);
         entry.entry(key).or_insert_with(Vec::new).push(address);
     }
 
     /// Registers a clause for the given predicate name.
+    #[inline(always)]
     pub fn register_predicate(&mut self, name: String, address: usize) {
         self.predicate_table
             .entry(name)
@@ -138,6 +151,7 @@ impl Machine {
     }
 
     /// Unify two terms.
+    #[inline(always)]
     pub fn unify(&mut self, t1: &Term, t2: &Term) -> Result<(), MachineError> {
         let resolved1 = self.uf.resolve(t1);
         let resolved2 = self.uf.resolve(t2);
@@ -151,12 +165,8 @@ impl Machine {
                     )))
                 }
             },
-            (Term::Var(v), other) => {
-                self.uf.bind(*v, other)
-            },
-            (other, Term::Var(v)) => {
-                self.uf.bind(*v, other)
-            },
+            (Term::Var(v), other) => self.uf.bind(*v, other),
+            (other, Term::Var(v)) => self.uf.bind(*v, other),
             (Term::Compound(f1, args1), Term::Compound(f2, args2)) => {
                 if f1 != f2 || args1.len() != args2.len() {
                     return Err(MachineError::UnificationFailed(format!(
@@ -175,11 +185,11 @@ impl Machine {
     }
 
     /// Execute one instruction.
+    #[inline(always)]
     pub fn step(&mut self) -> Result<(), MachineError> {
-        if self.pc >= self.code.len() {
-            return Err(MachineError::NoMoreInstructions);
-        }
-        let instr = self.code[self.pc].clone();
+        let instr = self.code.get(self.pc)
+            .ok_or(MachineError::NoMoreInstructions)?
+            .clone();
         self.pc += 1;
         self.trace(&instr);
         match instr {
@@ -207,18 +217,20 @@ impl Machine {
         }
     }
 
+    #[inline(always)]
     fn exec_put_const(&mut self, register: usize, value: i32) -> Result<(), MachineError> {
-        if register < self.registers.len() {
-            self.registers[register] = Some(Term::Const(value));
+        if let Some(slot) = self.registers.get_mut(register) {
+            *slot = Some(Term::Const(value));
             Ok(())
         } else {
             Err(MachineError::RegisterOutOfBounds(register))
         }
     }
 
+    #[inline(always)]
     fn exec_put_var(&mut self, register: usize, var_id: usize, name: String) -> Result<(), MachineError> {
-        if register < self.registers.len() {
-            self.registers[register] = Some(Term::Var(var_id));
+        if let Some(slot) = self.registers.get_mut(register) {
+            *slot = Some(Term::Var(var_id));
             self.variable_names.insert(var_id, name);
             Ok(())
         } else {
@@ -226,22 +238,23 @@ impl Machine {
         }
     }
 
+    #[inline(always)]
     fn exec_get_const(&mut self, register: usize, value: i32) -> Result<(), MachineError> {
-        if register >= self.registers.len() {
-            return Err(MachineError::RegisterOutOfBounds(register));
-        }
-        if let Some(term) = self.registers[register].clone() {
-            self.unify(&term, &Term::Const(value)).map_err(|_| {
-                MachineError::UnificationFailed(format!(
-                    "Cannot unify {:?} with {:?}", term, Term::Const(value)
-                ))
-            })?;
-            Ok(())
-        } else {
-            Err(MachineError::UninitializedRegister(register))
+        match self.registers.get(register) {
+            Some(Some(term)) => {
+                let term_clone = term.clone(); // break the immutable borrow
+                self.unify(&term_clone, &Term::Const(value)).map_err(|_| {
+                    MachineError::UnificationFailed(format!(
+                        "Cannot unify {:?} with {:?}", term_clone, Term::Const(value)
+                    ))
+                })
+            },
+            Some(None) => Err(MachineError::UninitializedRegister(register)),
+            None => Err(MachineError::RegisterOutOfBounds(register)),
         }
     }
 
+    #[inline(always)]
     fn exec_get_var(&mut self, register: usize, var_id: usize, name: String) -> Result<(), MachineError> {
         if register >= self.registers.len() {
             return Err(MachineError::RegisterOutOfBounds(register));
@@ -251,8 +264,7 @@ impl Machine {
             let goal = Term::Var(var_id);
             self.unify(&goal, &term).map_err(|_| {
                 MachineError::UnificationFailed(format!("Cannot unify {:?} with {:?}", goal, term))
-            })?;
-            Ok(())
+            })
         } else {
             self.registers[register] = Some(Term::Var(var_id));
             Ok(())
@@ -260,6 +272,7 @@ impl Machine {
     }
 
     /// Executes a call: checks built-ins first.
+    #[inline(always)]
     fn exec_call(&mut self, predicate: String) -> Result<(), MachineError> {
         if let Some(builtin) = self.builtins.get(&predicate) {
             // Execute built-in predicate.
@@ -288,6 +301,7 @@ impl Machine {
         }
     }
 
+    #[inline(always)]
     fn exec_proceed(&mut self) -> Result<(), MachineError> {
         if let Some(frame) = self.control_stack.pop() {
             self.pc = frame.return_pc;
@@ -295,6 +309,7 @@ impl Machine {
         Ok(())
     }
 
+    #[inline(always)]
     fn exec_choice(&mut self, alternative: usize) -> Result<(), MachineError> {
         let cp = ChoicePoint {
             saved_pc: self.pc,
@@ -308,11 +323,13 @@ impl Machine {
         Ok(())
     }
 
+    #[inline(always)]
     fn exec_allocate(&mut self, n: usize) -> Result<(), MachineError> {
         self.environment_stack.push(vec![None; n]);
         Ok(())
     }
 
+    #[inline(always)]
     fn exec_deallocate(&mut self) -> Result<(), MachineError> {
         if self.environment_stack.pop().is_some() {
             Ok(())
@@ -321,20 +338,22 @@ impl Machine {
         }
     }
 
+    #[inline(always)]
     fn exec_arithmetic_is(&mut self, target: usize, expression: arithmetic::Expression) -> Result<(), MachineError> {
         let result = arithmetic::evaluate(&expression, &self.registers)?;
-        if target < self.registers.len() {
-            self.registers[target] = Some(Term::Const(result));
+        if let Some(slot) = self.registers.get_mut(target) {
+            *slot = Some(Term::Const(result));
             Ok(())
         } else {
             Err(MachineError::RegisterOutOfBounds(target))
         }
     }
 
+    #[inline(always)]
     fn exec_set_local(&mut self, index: usize, value: Term) -> Result<(), MachineError> {
         if let Some(env) = self.environment_stack.last_mut() {
-            if index < env.len() {
-                env[index] = Some(value);
+            if let Some(slot) = env.get_mut(index) {
+                *slot = Some(value);
                 Ok(())
             } else {
                 Err(MachineError::RegisterOutOfBounds(index))
@@ -344,28 +363,29 @@ impl Machine {
         }
     }
 
+    #[inline(always)]
     fn exec_get_local(&mut self, index: usize, register: usize) -> Result<(), MachineError> {
         if let Some(env) = self.environment_stack.last() {
-            if index < env.len() {
-                if let Some(term) = env[index].clone() {
-                    if register < self.registers.len() {
-                        if let Some(reg_term) = self.registers[register].clone() {
-                            self.unify(&reg_term, &term).map_err(|_| {
-                                MachineError::UnificationFailed(format!("Cannot unify {:?} with {:?}", reg_term, term))
-                            })?;
-                            Ok(())
-                        } else {
-                            self.registers[register] = Some(term);
-                            Ok(())
-                        }
-                    } else {
-                        Err(MachineError::RegisterOutOfBounds(register))
+            // First, obtain a clone of the term in the environment.
+            let term = env.get(index)
+                .and_then(|t| t.clone())
+                .ok_or(MachineError::UninitializedRegister(index))?;
+            // Then get a mutable reference to the register slot.
+            if let Some(reg_slot) = self.registers.get_mut(register) {
+                match reg_slot {
+                    Some(existing_term) => {
+                        let cloned = existing_term.clone();
+                        self.unify(&cloned, &term).map_err(|_| {
+                            MachineError::UnificationFailed(format!("Cannot unify {:?} with {:?}", cloned, term))
+                        })
+                    },
+                    None => {
+                        *reg_slot = Some(term);
+                        Ok(())
                     }
-                } else {
-                    Err(MachineError::UninitializedRegister(index))
                 }
             } else {
-                Err(MachineError::RegisterOutOfBounds(index))
+                Err(MachineError::RegisterOutOfBounds(register))
             }
         } else {
             Err(MachineError::EnvironmentMissing)
@@ -375,20 +395,27 @@ impl Machine {
     /// Executes a failure and triggers backtracking.
     /// 
     /// **Note:** The trail mechanism has been removed in favor of rolling back the union-find state.
-    /// Executes a failure and triggers backtracking.
-    /// 
-    /// **Note:** The trail mechanism has been removed in favor of rolling back the union-find state.
+    #[inline(always)]
     fn exec_fail(&mut self) -> Result<(), MachineError> {
-        while let Some(mut cp) = self.choice_stack.pop() {
-            self.registers = cp.saved_registers.clone();
-            self.substitution = cp.saved_substitution.clone();
-            self.control_stack = cp.saved_control_stack.clone();
-            self.uf = cp.saved_uf.clone();
+        while let Some(cp) = self.choice_stack.pop() {
+            // Instead of cloning saved state, use it directly.
+            self.registers = cp.saved_registers;
+            self.substitution = cp.saved_substitution;
+            self.control_stack = cp.saved_control_stack;
+            self.uf = cp.saved_uf;
 
-            if let Some(ref mut alternatives) = cp.alternative_clauses {
+            if let Some(mut alternatives) = cp.alternative_clauses {
                 if let Some(next_addr) = alternatives.pop() {
                     if !alternatives.is_empty() {
-                        self.choice_stack.push(cp);
+                        // Push back the choice point with remaining alternatives.
+                        self.choice_stack.push(ChoicePoint {
+                            saved_pc: cp.saved_pc,
+                            saved_registers: self.registers.clone(),
+                            saved_substitution: self.substitution.clone(),
+                            saved_control_stack: self.control_stack.clone(),
+                            alternative_clauses: Some(alternatives),
+                            saved_uf: self.uf.clone(),
+                        });
                     }
                     self.pc = next_addr;
                     return Ok(());
@@ -398,81 +425,72 @@ impl Machine {
         Err(MachineError::NoChoicePoint)
     }
 
+    #[inline(always)]
     fn exec_get_structure(&mut self, register: usize, functor: String, arity: usize) -> Result<(), MachineError> {
-        if register >= self.registers.len() {
-            return Err(MachineError::RegisterOutOfBounds(register));
-        }
-        if let Some(term) = self.registers[register].clone() {
-            match term {
-                Term::Compound(ref f, ref args) => {
-                    if f == &functor && args.len() == arity {
-                        Ok(())
-                    } else {
-                        Err(MachineError::StructureMismatch {
-                            expected_functor: functor,
-                            expected_arity: arity,
-                            found_functor: f.clone(),
-                            found_arity: args.len(),
-                        })
-                    }
-                },
-                _ => Err(MachineError::NotACompoundTerm(register)),
-            }
-        } else {
-            Err(MachineError::UninitializedRegister(register))
+        match self.registers.get(register).and_then(|t| t.clone()) {
+            Some(Term::Compound(ref f, ref args)) => {
+                if f == &functor && args.len() == arity {
+                    Ok(())
+                } else {
+                    Err(MachineError::StructureMismatch {
+                        expected_functor: functor,
+                        expected_arity: arity,
+                        found_functor: f.clone(),
+                        found_arity: args.len(),
+                    })
+                }
+            },
+            Some(_) => Err(MachineError::NotACompoundTerm(register)),
+            None => Err(MachineError::UninitializedRegister(register)),
         }
     }
 
+    #[inline(always)]
     fn exec_indexed_call(&mut self, predicate: String, index_register: usize) -> Result<(), MachineError> {
-        if index_register >= self.registers.len() {
-            return Err(MachineError::RegisterOutOfBounds(index_register));
-        }
-        if let Some(key_term) = self.registers[index_register].clone() {
-            // For backward compatibility, treat single-key indexing as a vector with one element.
-            let key_vec = vec![key_term];
-            if let Some(index_map) = self.index_table.get(&predicate) {
-                if let Some(clauses) = index_map.get(&key_vec) {
-                    if !clauses.is_empty() {
-                        let mut alternatives = clauses.clone();
-                        let jump_to = alternatives.remove(0);
-                        let alternative_clauses = if alternatives.is_empty() { None } else { Some(alternatives) };
-                        let cp = ChoicePoint {
-                            saved_pc: self.pc,
-                            saved_registers: self.registers.clone(),
-                            saved_substitution: self.substitution.clone(),
-                            saved_control_stack: self.control_stack.clone(),
-                            alternative_clauses,
-                            saved_uf: self.uf.clone(),
-                        };
-                        self.choice_stack.push(cp);
-                        self.pc = jump_to;
-                        return Ok(());
-                    } else {
-                        return Err(MachineError::NoIndexedClause(predicate, key_vec[0].clone()));
-                    }
+        let key_term = self.registers.get(index_register)
+            .ok_or(MachineError::RegisterOutOfBounds(index_register))?
+            .clone()
+            .ok_or(MachineError::UninitializedRegister(index_register))?;
+        // For backward compatibility, treat single-key indexing as a vector with one element.
+        let key_vec = vec![key_term];
+        if let Some(index_map) = self.index_table.get(&predicate) {
+            if let Some(clauses) = index_map.get(&key_vec) {
+                if !clauses.is_empty() {
+                    let mut alternatives = clauses.clone();
+                    let jump_to = alternatives.remove(0);
+                    let alternative_clauses = if alternatives.is_empty() { None } else { Some(alternatives) };
+                    let cp = ChoicePoint {
+                        saved_pc: self.pc,
+                        saved_registers: self.registers.clone(),
+                        saved_substitution: self.substitution.clone(),
+                        saved_control_stack: self.control_stack.clone(),
+                        alternative_clauses,
+                        saved_uf: self.uf.clone(),
+                    };
+                    self.choice_stack.push(cp);
+                    self.pc = jump_to;
+                    return Ok(());
                 } else {
-                    return Err(MachineError::NoIndexEntry(predicate, key_vec[0].clone()));
+                    return Err(MachineError::NoIndexedClause(predicate, key_vec[0].clone()));
                 }
             } else {
-                return Err(MachineError::PredicateNotInIndex(predicate));
+                return Err(MachineError::NoIndexEntry(predicate, key_vec[0].clone()));
             }
         } else {
-            Err(MachineError::UninitializedRegister(index_register))
+            Err(MachineError::PredicateNotInIndex(predicate))
         }
     }
 
     /// New: Executes a multi-indexed call using a list of registers as the index key.
+    #[inline(always)]
     fn exec_multi_indexed_call(&mut self, predicate: String, index_registers: Vec<usize>) -> Result<(), MachineError> {
         let mut key_vec = Vec::new();
         for reg in index_registers {
-            if reg >= self.registers.len() {
-                return Err(MachineError::RegisterOutOfBounds(reg));
-            }
-            if let Some(term) = self.registers[reg].clone() {
-                key_vec.push(term);
-            } else {
-                return Err(MachineError::UninitializedRegister(reg));
-            }
+            let term = self.registers.get(reg)
+                .ok_or(MachineError::RegisterOutOfBounds(reg))?
+                .clone()
+                .ok_or(MachineError::UninitializedRegister(reg))?;
+            key_vec.push(term);
         }
         if let Some(index_map) = self.index_table.get(&predicate) {
             if let Some(clauses) = index_map.get(&key_vec) {
@@ -502,6 +520,7 @@ impl Machine {
         }
     }
 
+    #[inline(always)]
     fn exec_tail_call(&mut self, predicate: String) -> Result<(), MachineError> {
         let _ = self.environment_stack.pop();
         if let Some(builtin) = self.builtins.get(&predicate) {
@@ -530,6 +549,7 @@ impl Machine {
         }
     }
 
+    #[inline(always)]
     fn exec_assert_clause(&mut self, predicate: String, address: usize) -> Result<(), MachineError> {
         self.predicate_table
             .entry(predicate.clone())
@@ -539,6 +559,7 @@ impl Machine {
         Ok(())
     }
 
+    #[inline(always)]
     fn exec_retract_clause(&mut self, predicate: String, address: usize) -> Result<(), MachineError> {
         if let Some(clauses) = self.predicate_table.get_mut(&predicate) {
             if let Some(pos) = clauses.iter().position(|&a| a == address) {
@@ -553,25 +574,24 @@ impl Machine {
         }
     }
 
+    #[inline(always)]
     fn exec_cut(&mut self) -> Result<(), MachineError> {
         self.choice_stack.clear();
         Ok(())
     }
 
+    #[inline(always)]
     fn exec_build_compound(&mut self, target: usize, functor: String, arg_registers: Vec<usize>) -> Result<(), MachineError> {
         let mut args = Vec::new();
         for &reg in &arg_registers {
-            if reg >= self.registers.len() {
-                return Err(MachineError::RegisterOutOfBounds(reg));
-            }
-            if let Some(term) = self.registers[reg].clone() {
-                args.push(term);
-            } else {
-                return Err(MachineError::UninitializedRegister(reg));
-            }
+            let term = self.registers.get(reg)
+                .ok_or(MachineError::RegisterOutOfBounds(reg))?
+                .clone()
+                .ok_or(MachineError::UninitializedRegister(reg))?;
+            args.push(term);
         }
-        if target < self.registers.len() {
-            self.registers[target] = Some(Term::Compound(functor, args));
+        if let Some(slot) = self.registers.get_mut(target) {
+            *slot = Some(Term::Compound(functor, args));
             Ok(())
         } else {
             Err(MachineError::RegisterOutOfBounds(target))
@@ -579,6 +599,7 @@ impl Machine {
     }
 
     /// Runs the machine until no more instructions are available.
+    #[inline(always)]
     pub fn run(&mut self) -> Result<(), MachineError> {
         while self.pc < self.code.len() {
             self.step()?;
