@@ -478,13 +478,11 @@ impl Machine {
     pub fn execute_get_str(&mut self, register: usize, value: String) -> Result<(), MachineError> {
         match self.registers.get(register) {
             Some(Some(term)) => {
-                match term {
-                    Term::Str(s) if s == &value => {
-                        debug!("GetStr: Register {} matches Str({})", register, value);
-                        Ok(())
-                    },
-                    other => Err(MachineError::UnificationFailed(format!("Expected string {:?} but found {:?}", value, other))),
-                }
+                let term_clone = term.clone();
+                self.unify(&term_clone, &Term::Str(value.clone()))
+                    .map_err(|_| MachineError::UnificationFailed(format!(
+                        "Cannot unify {:?} with Str({})", term_clone, value
+                    )))
             },
             Some(None) => Err(MachineError::UninitializedRegister(register)),
             None => Err(MachineError::RegisterOutOfBounds(register)),
