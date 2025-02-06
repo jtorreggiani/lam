@@ -1,7 +1,9 @@
+//! Provides lambda calculus functionalities, including substitution and beta reduction.
+
 use std::collections::HashSet;
 use crate::term::Term;
 
-#[inline]
+/// Computes the set of free variables in a term.
 fn free_vars(term: &Term) -> HashSet<usize> {
     match term {
         Term::Var(v) => {
@@ -9,7 +11,7 @@ fn free_vars(term: &Term) -> HashSet<usize> {
             set.insert(*v);
             set
         },
-        Term::Const(_) => HashSet::new(),
+        Term::Const(_) | Term::Str(_) => HashSet::new(),
         Term::Compound(_, args) => {
             args.iter().fold(HashSet::new(), |mut acc, t| {
                 acc.extend(free_vars(t));
@@ -39,12 +41,9 @@ fn free_vars(term: &Term) -> HashSet<usize> {
     }
 }
 
-#[inline]
+/// Generates a fresh variable identifier that does not appear in either term.
 fn generate_fresh_var(term: &Term, replacement: &Term) -> usize {
-    let union: HashSet<usize> = free_vars(term)
-        .union(&free_vars(replacement))
-        .cloned()
-        .collect();
+    let union: HashSet<usize> = free_vars(term).union(&free_vars(replacement)).cloned().collect();
     let mut fresh = 0;
     while union.contains(&fresh) {
         fresh += 1;
@@ -53,11 +52,6 @@ fn generate_fresh_var(term: &Term, replacement: &Term) -> usize {
 }
 
 /// Performs capture-avoiding substitution of a variable with a replacement term.
-///
-/// This function replaces occurrences of the variable (identified by `var`) with the
-/// given `replacement` term. When encountering a lambda abstraction that binds the same variable
-/// or conflicts with free variables in the replacement, alpha-renaming is performed to avoid capture.
-#[inline]
 pub fn substitute(term: &Term, var: usize, replacement: &Term) -> Term {
     match term {
         Term::Var(v) => {
@@ -67,7 +61,7 @@ pub fn substitute(term: &Term, var: usize, replacement: &Term) -> Term {
                 term.clone()
             }
         },
-        Term::Const(_) => term.clone(),
+        Term::Const(_) | Term::Str(_) => term.clone(),
         Term::Compound(f, args) => {
             Term::Compound(f.clone(), args.iter().map(|t| substitute(t, var, replacement)).collect())
         },
@@ -86,10 +80,7 @@ pub fn substitute(term: &Term, var: usize, replacement: &Term) -> Term {
             }
         },
         Term::App(fun, arg) => {
-            Term::App(
-                Box::new(substitute(fun, var, replacement)),
-                Box::new(substitute(arg, var, replacement))
-            )
+            Term::App(Box::new(substitute(fun, var, replacement)), Box::new(substitute(arg, var, replacement)))
         },
         Term::Prob(inner) => Term::Prob(Box::new(substitute(inner, var, replacement))),
         Term::Constraint(name, terms) => {
@@ -101,12 +92,7 @@ pub fn substitute(term: &Term, var: usize, replacement: &Term) -> Term {
     }
 }
 
-/// Performs a single-step beta reduction on a lambda calculus application in a capture-avoiding manner.
-///
-/// If the term is an application of a lambda abstraction, this function substitutes the argument
-/// into the body of the abstraction (using the capture-avoiding `substitute` function). For other
-/// term variants, it recursively beta-reduces subterms where applicable.
-#[inline]
+/// Performs a single-step beta reduction on a lambda calculus application.
 pub fn beta_reduce(term: &Term) -> Term {
     match term {
         Term::App(fun, arg) => {
@@ -117,13 +103,10 @@ pub fn beta_reduce(term: &Term) -> Term {
             }
         },
         Term::Lambda(param, body) => Term::Lambda(*param, Box::new(beta_reduce(body))),
-        Term::Compound(f, args) => {
-            Term::Compound(f.clone(), args.iter().map(beta_reduce).collect())
-        },
+        Term::Compound(f, args) => Term::Compound(f.clone(), args.iter().map(beta_reduce).collect()),
+        Term::Str(_) => term.clone(),
         Term::Prob(inner) => Term::Prob(Box::new(beta_reduce(inner))),
-        Term::Constraint(name, terms) => {
-            Term::Constraint(name.clone(), terms.iter().map(beta_reduce).collect())
-        },
+        Term::Constraint(name, terms) => Term::Constraint(name.clone(), terms.iter().map(beta_reduce).collect()),
         Term::Modal(op, inner) => Term::Modal(op.clone(), Box::new(beta_reduce(inner))),
         Term::Temporal(op, inner) => Term::Temporal(op.clone(), Box::new(beta_reduce(inner))),
         Term::HigherOrder(inner) => Term::HigherOrder(Box::new(beta_reduce(inner))),

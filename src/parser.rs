@@ -1,13 +1,12 @@
-use crate::machine::instruction::Instruction;
-use crate::arithmetic::parse_expression;
-use crate::term::Term;
+//! Parses textual LAM programs into a vector of instructions.
 
-/// Parses a LAM program (given as a &str) into a vector of LAM instructions.
+use crate::machine::instruction::Instruction;
+
 pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
     let mut instructions = Vec::new();
     for (line_no, line) in input.lines().enumerate() {
         let line = line.trim();
-        // Skip blank lines and comments (lines starting with '#' are comments).
+        // Skip blank lines and comments.
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
@@ -16,6 +15,24 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
             continue;
         }
         let instr = match tokens[0] {
+            "PutStr" => {
+                if tokens.len() != 3 {
+                    return Err(format!("Line {}: PutStr expects 2 arguments", line_no + 1));
+                }
+                let register = tokens[1].parse::<usize>()
+                    .map_err(|_| format!("Line {}: invalid register", line_no + 1))?;
+                let value = tokens[2].trim_matches('"').to_string();
+                Instruction::PutStr { register, value }
+            }
+            "GetStr" => {
+                if tokens.len() != 3 {
+                    return Err(format!("Line {}: GetStr expects 2 arguments", line_no + 1));
+                }
+                let register = tokens[1].parse::<usize>()
+                    .map_err(|_| format!("Line {}: invalid register", line_no + 1))?;
+                let value = tokens[2].trim_matches('"').to_string();
+                Instruction::GetStr { register, value }
+            }
             "PutConst" => {
                 if tokens.len() != 3 {
                     return Err(format!("Line {}: PutConst expects 2 arguments", line_no + 1));
@@ -34,7 +51,6 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                     .map_err(|_| format!("Line {}: invalid register", line_no + 1))?;
                 let var_id = tokens[2].parse::<usize>()
                     .map_err(|_| format!("Line {}: invalid var_id", line_no + 1))?;
-                // Remove surrounding quotes if any.
                 let name = tokens[3].trim_matches('"').to_string();
                 Instruction::PutVar { register, var_id, name }
             }
@@ -91,9 +107,8 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                 }
                 let target = tokens[1].parse::<usize>()
                     .map_err(|_| format!("Line {}: invalid target", line_no + 1))?;
-                // The remaining tokens form a simple arithmetic expression.
                 let expr_str = tokens[2..].join(" ");
-                let expression = parse_expression(&expr_str)
+                let expression = crate::arithmetic::parse_expression(&expr_str)
                     .map_err(|e| format!("Line {}: ArithmeticIs expression error: {}", line_no + 1, e))?;
                 Instruction::ArithmeticIs { target, expression }
             }
@@ -105,7 +120,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                     .map_err(|_| format!("Line {}: invalid index", line_no + 1))?;
                 let value = tokens[2].parse::<i32>()
                     .map_err(|_| format!("Line {}: invalid value", line_no + 1))?;
-                Instruction::SetLocal { index, value: Term::Const(value) }
+                Instruction::SetLocal { index, value: crate::term::Term::Const(value) }
             }
             "GetLocal" => {
                 if tokens.len() != 3 {
@@ -191,6 +206,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                 }
                 Instruction::BuildCompound { target, functor, arg_registers }
             }
+            "Halt" => Instruction::Halt,
             other => return Err(format!("Line {}: Unknown instruction '{}'", line_no + 1, other)),
         };
         instructions.push(instr);

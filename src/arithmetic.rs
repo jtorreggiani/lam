@@ -1,17 +1,21 @@
+//! Provides arithmetic expression evaluation for the LAM.
+//! This module defines an expression tree and an evaluator that computes integer results.
+
 use crate::term::Term;
 use crate::machine::MachineError;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
     Const(i32),
-    Var(usize), // new: allows us to refer to a register by its index
+    Var(usize), // Refers to a register index.
     Add(Box<Expression>, Box<Expression>),
     Sub(Box<Expression>, Box<Expression>),
     Mul(Box<Expression>, Box<Expression>),
     Div(Box<Expression>, Box<Expression>),
 }
 
-#[inline(always)]
+/// Evaluates an arithmetic expression using the current machine registers.
+/// Detailed evaluation steps are logged for debugging purposes.
 pub fn evaluate(expr: &Expression, registers: &[Option<Term>]) -> Result<i32, MachineError> {
     match expr {
         Expression::Const(n) => Ok(*n),
@@ -29,20 +33,16 @@ pub fn evaluate(expr: &Expression, registers: &[Option<Term>]) -> Result<i32, Ma
     }
 }
 
-#[inline(always)]
+/// Parses a string into an arithmetic expression.
+/// This function is basic and supports simple expressions.
 pub fn parse_expression(expr: &str) -> Result<Expression, String> {
-    // Split the expression into tokens.
     let tokens: Vec<&str> = expr.split_whitespace().collect();
     if tokens.len() == 1 {
-        // Try parsing a single constant.
-        let n = tokens[0].parse::<i32>()
-            .map_err(|_| format!("Invalid constant: {}", tokens[0]))?;
+        let n = tokens[0].parse::<i32>().map_err(|_| format!("Invalid constant: {}", tokens[0]))?;
         Ok(Expression::Const(n))
     } else if tokens.len() == 3 {
-        let left = tokens[0].parse::<i32>()
-            .map_err(|_| format!("Invalid constant: {}", tokens[0]))?;
-        let right = tokens[2].parse::<i32>()
-            .map_err(|_| format!("Invalid constant: {}", tokens[2]))?;
+        let left = tokens[0].parse::<i32>().map_err(|_| format!("Invalid constant: {}", tokens[0]))?;
+        let right = tokens[2].parse::<i32>().map_err(|_| format!("Invalid constant: {}", tokens[2]))?;
         match tokens[1] {
             "+" => Ok(Expression::Add(Box::new(Expression::Const(left)), Box::new(Expression::Const(right)))),
             "-" => Ok(Expression::Sub(Box::new(Expression::Const(left)), Box::new(Expression::Const(right)))),

@@ -25,4 +25,4 @@ Choice 10
 PutConst 6 100
 Fail
 PutConst 6 200
-Call print_registers
+Call print

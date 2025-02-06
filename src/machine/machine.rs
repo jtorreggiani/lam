@@ -1,7 +1,11 @@
+//! Implements the LAM abstract machine.
+//! This module uses various design patterns to structure the machine's behavior.
+//! Detailed logging is included to trace every logical inference step for debugging purposes.
+
 use std::collections::HashMap;
 use crate::term::Term;
 use crate::union_find::UnionFind;
-use log::{debug, error};
+use log::{debug, error, info};
 use thiserror::Error;
 
 use crate::arithmetic;
@@ -9,7 +13,6 @@ use super::{
     instruction::Instruction,
     frame::Frame,
     choice_point::ChoicePoint,
-    // Note: trail module is no longer used.
 };
 
 /// The set of errors that can occur during execution of the LAM.
@@ -48,10 +51,10 @@ pub enum MachineError {
     NoMoreInstructions,
 }
 
-/// Built-in predicate type.
+/// Built-in predicate type using the **Strategy Pattern**.
 pub type BuiltinPredicate = fn(&mut Machine) -> Result<(), MachineError>;
 
-/// The abstract machine structure.
+/// The LAM abstract machine structure.
 #[derive(Debug)]
 pub struct Machine {
     pub registers: Vec<Option<Term>>,
@@ -61,9 +64,7 @@ pub struct Machine {
     pub control_stack: Vec<Frame>,
     pub predicate_table: HashMap<String, Vec<usize>>,
     pub choice_stack: Vec<ChoicePoint>,
-    // Removed: trail field is no longer needed.
     pub environment_stack: Vec<Vec<Option<Term>>>,
-    // Updated: index_table now uses a vector of terms as the key for multi-argument indexing.
     pub index_table: HashMap<String, HashMap<Vec<Term>, Vec<usize>>>,
     pub variable_names: HashMap<usize, String>,
     pub uf: UnionFind,
@@ -74,7 +75,7 @@ pub struct Machine {
 }
 
 impl Machine {
-    #[inline(always)]
+    /// Creates a new machine with the specified number of registers and program code.
     pub fn new(num_registers: usize, code: Vec<Instruction>) -> Self {
         let mut machine = Self {
             registers: vec![None; num_registers],
@@ -86,28 +87,24 @@ impl Machine {
             index_table: HashMap::new(),
             predicate_table: HashMap::new(),
             substitution: HashMap::new(),
-            // Removed: trail field.
             uf: UnionFind::new(),
             variable_names: HashMap::new(),
             verbose: false,
             builtins: HashMap::new(),
         };
-        // Register an example built-in predicate "print"
+        // Register example built-in predicates.
         machine.builtins.insert("print".to_string(), Machine::builtin_print);
         machine.builtins.insert("print_subst".to_string(), Machine::builtin_print_subst);
         machine
     }
 
-    /// Built-in predicate example: prints the current registers.
-    #[inline(always)]
+    /// Built-in predicate that prints the machine registers.
     fn builtin_print(&mut self) -> Result<(), MachineError> {
         println!("--- Machine Registers ---");
-        // Print only registers that contain a value.
         for (i, reg) in self.registers.iter().enumerate() {
             if let Some(term) = reg {
                 match term {
                     Term::Var(id) => {
-                        // Clone the variable name so that we have an owned String.
                         let name = self.variable_names.get(id).cloned().unwrap_or_default();
                         println!("Reg {:>3}: Var({}) \"{}\"", i, id, name);
                     }
@@ -119,15 +116,13 @@ impl Machine {
         Ok(())
     }
 
-    /// Built-in predicate that prints the current substitution in a human-readable format.
-    #[inline(always)]
+    /// Built-in predicate that prints the current substitution.
     fn builtin_print_subst(&mut self) -> Result<(), MachineError> {
         println!("--- Current Substitution ---");
         if self.substitution.is_empty() {
             println!("(no bindings)");
         } else {
             for (var_id, term) in &self.substitution {
-                // Look up the variable's name if available.
                 let var_name = self.variable_names.get(var_id).cloned().unwrap_or_default();
                 println!("Variable {} (id {}) = {:?}", if var_name.is_empty() { format!("_{}", var_id) } else { var_name }, var_id, term);
             }
@@ -136,20 +131,18 @@ impl Machine {
         Ok(())
     }
 
-    /// Debug helper: if verbose, print the current PC and instruction.
-    #[inline(always)]
-    fn trace(&self, instr: &Instruction) {
+    /// Logs the execution of an instruction if verbose mode is enabled.
+    pub fn trace(&self, instr: &Instruction) {
         if self.verbose {
-            debug!("PC {}: {:?}", self.pc - 1, instr);
+            debug!("PC {}: Executing {:?}", self.pc - 1, instr);
             debug!("Registers: {:?}", self.registers);
+            debug!("Substitution: {:?}", self.substitution);
         }
-    }    
+    }
 
-    /// Helper to update the index table when retracting a clause.
-    #[inline(always)]
+    /// Helper to update the index table upon clause retraction.
     fn update_index_table_on_retract(&mut self, predicate: &str, clause_address: usize) {
         if let Some(index_map) = self.index_table.get_mut(predicate) {
-            // Iterate over keys and remove the clause_address if found.
             for (_key, clauses) in index_map.iter_mut() {
                 if let Some(pos) = clauses.iter().position(|&a| a == clause_address) {
                     clauses.remove(pos);
@@ -159,148 +152,124 @@ impl Machine {
     }
 
     /// Registers an indexed clause for the given predicate.
-    /// Now accepts a key as a vector of terms for multi-argument indexing.
-    #[inline(always)]
     pub fn register_indexed_clause(&mut self, predicate: String, key: Vec<Term>, address: usize) {
         let entry = self.index_table.entry(predicate).or_insert_with(HashMap::new);
         entry.entry(key).or_insert_with(Vec::new).push(address);
     }
 
     /// Registers a clause for the given predicate name.
-    #[inline(always)]
     pub fn register_predicate(&mut self, name: String, address: usize) {
-        self.predicate_table
-            .entry(name)
-            .or_insert_with(Vec::new)
-            .push(address);
+        self.predicate_table.entry(name).or_insert_with(Vec::new).push(address);
     }
 
-    /// Unify two terms.
-    #[inline(always)]
+    /// Unifies two terms, logging each inference step.
     pub fn unify(&mut self, t1: &Term, t2: &Term) -> Result<(), MachineError> {
+        debug!("Attempting to unify {:?} with {:?}", t1, t2);
         let resolved1 = self.uf.resolve(t1);
         let resolved2 = self.uf.resolve(t2);
-
+    
         match (&resolved1, &resolved2) {
             (Term::Const(a), Term::Const(b)) => {
-                if a == b { Ok(()) }
-                else {
-                    Err(MachineError::UnificationFailed(format!(
-                        "Constants do not match: {} vs {}", a, b
-                    )))
+                if a == b { 
+                    debug!("Constants matched: {} == {}", a, b);
+                    Ok(()) 
+                } else {
+                    Err(MachineError::UnificationFailed(format!("Constants do not match: {} vs {}", a, b)))
                 }
             },
-            (Term::Var(v), other) => self.uf.bind(*v, other),
-            (other, Term::Var(v)) => self.uf.bind(*v, other),
+            (Term::Str(s1), Term::Str(s2)) => {
+                if s1 == s2 { 
+                    debug!("String constants matched: {} == {}", s1, s2);
+                    Ok(()) 
+                } else {
+                    Err(MachineError::UnificationFailed(format!("String constants do not match: {} vs {}", s1, s2)))
+                }
+            },
+            (Term::Var(v), other) => {
+                debug!("Binding variable {} to {:?}", v, other);
+                self.uf.bind(*v, other)
+            },
+            (other, Term::Var(v)) => {
+                debug!("Binding variable {} to {:?}", v, other);
+                self.uf.bind(*v, other)
+            },
             (Term::Compound(f1, args1), Term::Compound(f2, args2)) => {
                 if f1 != f2 || args1.len() != args2.len() {
-                    return Err(MachineError::UnificationFailed(format!(
-                        "Compound term mismatch: {} vs {}", f1, f2
-                    )));
+                    return Err(MachineError::UnificationFailed(format!("Compound term mismatch: {} vs {}", f1, f2)));
                 }
                 for (a, b) in args1.iter().zip(args2.iter()) {
                     self.unify(a, b)?;
                 }
                 Ok(())
             },
-            (t1, t2) => Err(MachineError::UnificationFailed(format!(
-                "Failed to unify {:?} with {:?}", t1, t2
-            ))),
+            (t1, t2) => Err(MachineError::UnificationFailed(format!("Failed to unify {:?} with {:?}", t1, t2))),
         }
     }
 
-    /// Execute one instruction.
-    #[inline(always)]
+    /// Executes one instruction from the code.
     pub fn step(&mut self) -> Result<(), MachineError> {
         let instr = self.code.get(self.pc)
             .ok_or(MachineError::NoMoreInstructions)?
             .clone();
         self.pc += 1;
         self.trace(&instr);
-        match instr {
-            Instruction::PutConst { register, value } => self.exec_put_const(register, value),
-            Instruction::PutVar { register, var_id, name } => self.exec_put_var(register, var_id, name),
-            Instruction::GetConst { register, value } => self.exec_get_const(register, value),
-            Instruction::GetVar { register, var_id, name } => self.exec_get_var(register, var_id, name),
-            Instruction::Call { predicate } => self.exec_call(predicate),
-            Instruction::Proceed => self.exec_proceed(),
-            Instruction::Choice { alternative } => self.exec_choice(alternative),
-            Instruction::Allocate { n } => self.exec_allocate(n),
-            Instruction::Deallocate => self.exec_deallocate(),
-            Instruction::ArithmeticIs { target, expression } => self.exec_arithmetic_is(target, expression),
-            Instruction::SetLocal { index, value } => self.exec_set_local(index, value),
-            Instruction::GetLocal { index, register } => self.exec_get_local(index, register),
-            Instruction::Fail => self.exec_fail(),
-            Instruction::GetStructure { register, functor, arity } => self.exec_get_structure(register, functor, arity),
-            Instruction::IndexedCall { predicate, index_register } => self.exec_indexed_call(predicate, index_register),
-            Instruction::MultiIndexedCall { predicate, index_registers } => self.exec_multi_indexed_call(predicate, index_registers),
-            Instruction::TailCall { predicate } => self.exec_tail_call(predicate),
-            Instruction::AssertClause { predicate, address } => self.exec_assert_clause(predicate, address),
-            Instruction::RetractClause { predicate, address } => self.exec_retract_clause(predicate, address),
-            Instruction::Cut => self.exec_cut(),
-            Instruction::BuildCompound { target, functor, arg_registers } => self.exec_build_compound(target, functor, arg_registers),
-        }
+        // Use the Command Pattern: delegate execution to the instruction.
+        instr.execute(self)
     }
 
-    #[inline(always)]
-    fn exec_put_const(&mut self, register: usize, value: i32) -> Result<(), MachineError> {
+    // --- Execution methods for each instruction ---
+
+    pub fn execute_put_const(&mut self, register: usize, value: i32) -> Result<(), MachineError> {
         if let Some(slot) = self.registers.get_mut(register) {
             *slot = Some(Term::Const(value));
+            debug!("PutConst: Register {} set to Const({})", register, value);
             Ok(())
         } else {
             Err(MachineError::RegisterOutOfBounds(register))
         }
     }
 
-    #[inline(always)]
-    fn exec_put_var(&mut self, register: usize, var_id: usize, name: String) -> Result<(), MachineError> {
+    pub fn execute_put_var(&mut self, register: usize, var_id: usize, name: String) -> Result<(), MachineError> {
         if let Some(slot) = self.registers.get_mut(register) {
             *slot = Some(Term::Var(var_id));
             self.variable_names.insert(var_id, name);
+            debug!("PutVar: Register {} set to Var({})", register, var_id);
             Ok(())
         } else {
             Err(MachineError::RegisterOutOfBounds(register))
         }
     }
 
-    #[inline(always)]
-    fn exec_get_const(&mut self, register: usize, value: i32) -> Result<(), MachineError> {
+    pub fn execute_get_const(&mut self, register: usize, value: i32) -> Result<(), MachineError> {
         match self.registers.get(register) {
             Some(Some(term)) => {
-                let term_clone = term.clone(); // break the immutable borrow
-                self.unify(&term_clone, &Term::Const(value)).map_err(|_| {
-                    MachineError::UnificationFailed(format!(
-                        "Cannot unify {:?} with {:?}", term_clone, Term::Const(value)
-                    ))
-                })
+                let term_clone = term.clone();
+                self.unify(&term_clone, &Term::Const(value))
+                    .map_err(|_| MachineError::UnificationFailed(format!("Cannot unify {:?} with Const({})", term_clone, value)))
             },
             Some(None) => Err(MachineError::UninitializedRegister(register)),
             None => Err(MachineError::RegisterOutOfBounds(register)),
         }
     }
 
-    #[inline(always)]
-    fn exec_get_var(&mut self, register: usize, var_id: usize, name: String) -> Result<(), MachineError> {
+    pub fn execute_get_var(&mut self, register: usize, var_id: usize, name: String) -> Result<(), MachineError> {
         if register >= self.registers.len() {
             return Err(MachineError::RegisterOutOfBounds(register));
         }
         self.variable_names.entry(var_id).or_insert(name);
         if let Some(term) = self.registers[register].clone() {
             let goal = Term::Var(var_id);
-            self.unify(&goal, &term).map_err(|_| {
-                MachineError::UnificationFailed(format!("Cannot unify {:?} with {:?}", goal, term))
-            })
+            self.unify(&goal, &term)
+                .map_err(|_| MachineError::UnificationFailed(format!("Cannot unify {:?} with {:?}", goal, term)))
         } else {
             self.registers[register] = Some(Term::Var(var_id));
             Ok(())
         }
     }
 
-    /// Executes a call: checks built-ins first.
-    #[inline(always)]
-    fn exec_call(&mut self, predicate: String) -> Result<(), MachineError> {
+    pub fn execute_call(&mut self, predicate: String) -> Result<(), MachineError> {
+        debug!("Executing Call for predicate '{}'", predicate);
         if let Some(builtin) = self.builtins.get(&predicate) {
-            // Execute built-in predicate.
             builtin(self)
         } else if let Some(clauses) = self.predicate_table.get(&predicate) {
             if clauses.is_empty() {
@@ -319,6 +288,7 @@ impl Machine {
                 saved_uf: self.uf.clone(),
             };
             self.choice_stack.push(cp);
+            debug!("Call: Jumping to clause at address {}", jump_to);
             self.pc = jump_to;
             Ok(())
         } else {
@@ -326,16 +296,15 @@ impl Machine {
         }
     }
 
-    #[inline(always)]
-    fn exec_proceed(&mut self) -> Result<(), MachineError> {
+    pub fn execute_proceed(&mut self) -> Result<(), MachineError> {
         if let Some(frame) = self.control_stack.pop() {
+            debug!("Proceed: Returning to PC {}", frame.return_pc);
             self.pc = frame.return_pc;
         }
         Ok(())
     }
 
-    #[inline(always)]
-    fn exec_choice(&mut self, alternative: usize) -> Result<(), MachineError> {
+    pub fn execute_choice(&mut self, alternative: usize) -> Result<(), MachineError> {
         let cp = ChoicePoint {
             saved_pc: self.pc,
             saved_registers: self.registers.clone(),
@@ -345,40 +314,41 @@ impl Machine {
             saved_uf: self.uf.clone(),
         };
         self.choice_stack.push(cp);
+        debug!("Choice: Saved state with alternative {}", alternative);
         Ok(())
     }
 
-    #[inline(always)]
-    fn exec_allocate(&mut self, n: usize) -> Result<(), MachineError> {
+    pub fn execute_allocate(&mut self, n: usize) -> Result<(), MachineError> {
         self.environment_stack.push(vec![None; n]);
+        debug!("Allocate: Environment frame of size {} allocated", n);
         Ok(())
     }
 
-    #[inline(always)]
-    fn exec_deallocate(&mut self) -> Result<(), MachineError> {
+    pub fn execute_deallocate(&mut self) -> Result<(), MachineError> {
         if self.environment_stack.pop().is_some() {
+            debug!("Deallocate: Environment frame deallocated");
             Ok(())
         } else {
             Err(MachineError::EnvironmentMissing)
         }
     }
 
-    #[inline(always)]
-    fn exec_arithmetic_is(&mut self, target: usize, expression: arithmetic::Expression) -> Result<(), MachineError> {
+    pub fn execute_arithmetic_is(&mut self, target: usize, expression: arithmetic::Expression) -> Result<(), MachineError> {
         let result = arithmetic::evaluate(&expression, &self.registers)?;
         if let Some(slot) = self.registers.get_mut(target) {
             *slot = Some(Term::Const(result));
+            debug!("ArithmeticIs: Evaluated expression to {} and stored in register {}", result, target);
             Ok(())
         } else {
             Err(MachineError::RegisterOutOfBounds(target))
         }
     }
 
-    #[inline(always)]
-    fn exec_set_local(&mut self, index: usize, value: Term) -> Result<(), MachineError> {
+    pub fn execute_set_local(&mut self, index: usize, value: Term) -> Result<(), MachineError> {
         if let Some(env) = self.environment_stack.last_mut() {
             if let Some(slot) = env.get_mut(index) {
-                *slot = Some(value);
+                *slot = Some(value.clone());
+                debug!("SetLocal: Environment variable at index {} set to {:?}", index, value);
                 Ok(())
             } else {
                 Err(MachineError::RegisterOutOfBounds(index))
@@ -388,21 +358,15 @@ impl Machine {
         }
     }
 
-    #[inline(always)]
-    fn exec_get_local(&mut self, index: usize, register: usize) -> Result<(), MachineError> {
+    pub fn execute_get_local(&mut self, index: usize, register: usize) -> Result<(), MachineError> {
         if let Some(env) = self.environment_stack.last() {
-            // First, obtain a clone of the term in the environment.
-            let term = env.get(index)
-                .and_then(|t| t.clone())
-                .ok_or(MachineError::UninitializedRegister(index))?;
-            // Then get a mutable reference to the register slot.
+            let term = env.get(index).and_then(|t| t.clone()).ok_or(MachineError::UninitializedRegister(index))?;
             if let Some(reg_slot) = self.registers.get_mut(register) {
                 match reg_slot {
                     Some(existing_term) => {
                         let cloned = existing_term.clone();
-                        self.unify(&cloned, &term).map_err(|_| {
-                            MachineError::UnificationFailed(format!("Cannot unify {:?} with {:?}", cloned, term))
-                        })
+                        self.unify(&cloned, &term)
+                            .map_err(|_| MachineError::UnificationFailed(format!("Cannot unify {:?} with {:?}", cloned, term)))
                     },
                     None => {
                         *reg_slot = Some(term);
@@ -417,13 +381,9 @@ impl Machine {
         }
     }
 
-    /// Executes a failure and triggers backtracking.
-    /// 
-    /// **Note:** The trail mechanism has been removed in favor of rolling back the union-find state.
-    #[inline(always)]
-    fn exec_fail(&mut self) -> Result<(), MachineError> {
+    pub fn execute_fail(&mut self) -> Result<(), MachineError> {
+        debug!("Fail: Triggering backtracking");
         while let Some(cp) = self.choice_stack.pop() {
-            // Instead of cloning saved state, use it directly.
             self.registers = cp.saved_registers;
             self.substitution = cp.saved_substitution;
             self.control_stack = cp.saved_control_stack;
@@ -432,7 +392,6 @@ impl Machine {
             if let Some(mut alternatives) = cp.alternative_clauses {
                 if let Some(next_addr) = alternatives.pop() {
                     if !alternatives.is_empty() {
-                        // Push back the choice point with remaining alternatives.
                         self.choice_stack.push(ChoicePoint {
                             saved_pc: cp.saved_pc,
                             saved_registers: self.registers.clone(),
@@ -443,6 +402,7 @@ impl Machine {
                         });
                     }
                     self.pc = next_addr;
+                    debug!("Backtracking: Jumping to alternative clause at address {}", next_addr);
                     return Ok(());
                 }
             }
@@ -450,11 +410,11 @@ impl Machine {
         Err(MachineError::NoChoicePoint)
     }
 
-    #[inline(always)]
-    fn exec_get_structure(&mut self, register: usize, functor: String, arity: usize) -> Result<(), MachineError> {
+    pub fn execute_get_structure(&mut self, register: usize, functor: String, arity: usize) -> Result<(), MachineError> {
         match self.registers.get(register).and_then(|t| t.clone()) {
             Some(Term::Compound(ref f, ref args)) => {
                 if f == &functor && args.len() == arity {
+                    debug!("GetStructure: Register {} matches structure {} with arity {}", register, functor, arity);
                     Ok(())
                 } else {
                     Err(MachineError::StructureMismatch {
@@ -470,13 +430,11 @@ impl Machine {
         }
     }
 
-    #[inline(always)]
-    fn exec_indexed_call(&mut self, predicate: String, index_register: usize) -> Result<(), MachineError> {
+    pub fn execute_indexed_call(&mut self, predicate: String, index_register: usize) -> Result<(), MachineError> {
         let key_term = self.registers.get(index_register)
             .ok_or(MachineError::RegisterOutOfBounds(index_register))?
             .clone()
             .ok_or(MachineError::UninitializedRegister(index_register))?;
-        // For backward compatibility, treat single-key indexing as a vector with one element.
         let key_vec = vec![key_term];
         if let Some(index_map) = self.index_table.get(&predicate) {
             if let Some(clauses) = index_map.get(&key_vec) {
@@ -494,6 +452,7 @@ impl Machine {
                     };
                     self.choice_stack.push(cp);
                     self.pc = jump_to;
+                    debug!("IndexedCall: Jumping to clause at address {} using key {:?}", jump_to, key_vec);
                     return Ok(());
                 } else {
                     return Err(MachineError::NoIndexedClause(predicate, key_vec[0].clone()));
@@ -506,9 +465,33 @@ impl Machine {
         }
     }
 
-    /// New: Executes a multi-indexed call using a list of registers as the index key.
-    #[inline(always)]
-    fn exec_multi_indexed_call(&mut self, predicate: String, index_registers: Vec<usize>) -> Result<(), MachineError> {
+    pub fn execute_put_str(&mut self, register: usize, value: String) -> Result<(), MachineError> {
+        if let Some(slot) = self.registers.get_mut(register) {
+            *slot = Some(Term::Str(value.clone()));
+            debug!("PutStr: Register {} set to Str({})", register, value);
+            Ok(())
+        } else {
+            Err(MachineError::RegisterOutOfBounds(register))
+        }
+    }
+
+    pub fn execute_get_str(&mut self, register: usize, value: String) -> Result<(), MachineError> {
+        match self.registers.get(register) {
+            Some(Some(term)) => {
+                match term {
+                    Term::Str(s) if s == &value => {
+                        debug!("GetStr: Register {} matches Str({})", register, value);
+                        Ok(())
+                    },
+                    other => Err(MachineError::UnificationFailed(format!("Expected string {:?} but found {:?}", value, other))),
+                }
+            },
+            Some(None) => Err(MachineError::UninitializedRegister(register)),
+            None => Err(MachineError::RegisterOutOfBounds(register)),
+        }
+    }
+
+    pub fn execute_multi_indexed_call(&mut self, predicate: String, index_registers: Vec<usize>) -> Result<(), MachineError> {
         let mut key_vec = Vec::new();
         for reg in index_registers {
             let term = self.registers.get(reg)
@@ -533,6 +516,7 @@ impl Machine {
                     };
                     self.choice_stack.push(cp);
                     self.pc = jump_to;
+                    debug!("MultiIndexedCall: Jumping to clause at address {} using key {:?}", jump_to, key_vec);
                     return Ok(());
                 } else {
                     return Err(MachineError::NoIndexedClause(predicate, key_vec[0].clone()));
@@ -545,9 +529,10 @@ impl Machine {
         }
     }
 
-    #[inline(always)]
-    fn exec_tail_call(&mut self, predicate: String) -> Result<(), MachineError> {
+    pub fn execute_tail_call(&mut self, predicate: String) -> Result<(), MachineError> {
+        // Tail call deallocates the current environment frame.
         let _ = self.environment_stack.pop();
+        debug!("TailCall: Deallocated environment frame for tail call to '{}'", predicate);
         if let Some(builtin) = self.builtins.get(&predicate) {
             builtin(self)
         } else if let Some(clauses) = self.predicate_table.get(&predicate) {
@@ -565,6 +550,7 @@ impl Machine {
                 };
                 self.choice_stack.push(cp);
                 self.pc = jump_to;
+                debug!("TailCall: Jumping to clause at address {} for predicate '{}'", jump_to, predicate);
                 Ok(())
             } else {
                 Err(MachineError::PredicateClauseNotFound(predicate))
@@ -574,22 +560,18 @@ impl Machine {
         }
     }
 
-    #[inline(always)]
-    fn exec_assert_clause(&mut self, predicate: String, address: usize) -> Result<(), MachineError> {
-        self.predicate_table
-            .entry(predicate.clone())
-            .or_insert_with(Vec::new)
-            .push(address);
-        // Optionally update the index table if desired.
+    pub fn execute_assert_clause(&mut self, predicate: String, address: usize) -> Result<(), MachineError> {
+        self.predicate_table.entry(predicate.clone()).or_insert_with(Vec::new).push(address);
+        debug!("AssertClause: Asserted clause at address {} for predicate '{}'", address, predicate);
         Ok(())
     }
 
-    #[inline(always)]
-    fn exec_retract_clause(&mut self, predicate: String, address: usize) -> Result<(), MachineError> {
+    pub fn execute_retract_clause(&mut self, predicate: String, address: usize) -> Result<(), MachineError> {
         if let Some(clauses) = self.predicate_table.get_mut(&predicate) {
             if let Some(pos) = clauses.iter().position(|&a| a == address) {
                 clauses.remove(pos);
                 self.update_index_table_on_retract(&predicate, address);
+                debug!("RetractClause: Retracted clause at address {} for predicate '{}'", address, predicate);
                 Ok(())
             } else {
                 Err(MachineError::PredicateClauseNotFound(predicate))
@@ -599,14 +581,13 @@ impl Machine {
         }
     }
 
-    #[inline(always)]
-    fn exec_cut(&mut self) -> Result<(), MachineError> {
+    pub fn execute_cut(&mut self) -> Result<(), MachineError> {
         self.choice_stack.clear();
+        debug!("Cut: Cleared all choice points");
         Ok(())
     }
 
-    #[inline(always)]
-    fn exec_build_compound(&mut self, target: usize, functor: String, arg_registers: Vec<usize>) -> Result<(), MachineError> {
+    pub fn execute_build_compound(&mut self, target: usize, functor: String, arg_registers: Vec<usize>) -> Result<(), MachineError> {
         let mut args = Vec::new();
         for &reg in &arg_registers {
             let term = self.registers.get(reg)
@@ -616,7 +597,8 @@ impl Machine {
             args.push(term);
         }
         if let Some(slot) = self.registers.get_mut(target) {
-            *slot = Some(Term::Compound(functor, args));
+            *slot = Some(Term::Compound(functor.clone(), args));
+            debug!("BuildCompound: Built compound term {}({:?}) in register {}", functor, arg_registers, target);
             Ok(())
         } else {
             Err(MachineError::RegisterOutOfBounds(target))
@@ -624,9 +606,13 @@ impl Machine {
     }
 
     /// Runs the machine until no more instructions are available.
-    #[inline(always)]
     pub fn run(&mut self) -> Result<(), MachineError> {
         while self.pc < self.code.len() {
+            // Check for Halt instruction explicitly.
+            if let Some(Instruction::Halt) = self.code.get(self.pc) {
+                debug!("Halt: Stopping execution");
+                break;
+            }
             self.step()?;
         }
         Ok(())

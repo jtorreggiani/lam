@@ -1,6 +1,11 @@
 use crate::term::Term;
 use crate::arithmetic::Expression;
+use crate::machine::MachineError;
+use crate::machine::machine::Machine; // Note the path to the Machine struct
 
+/// The `Instruction` enum represents all commands that the LAM can execute.
+/// Each variant corresponds to a specific operation in the abstract machine.
+/// This design follows the **Command Pattern** to encapsulate each instruction as an object.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Instruction {
     // Puts a constant in a register.
@@ -32,7 +37,7 @@ pub enum Instruction {
     TailCall { predicate: String },
     // IndexedCall uses a single register’s content as an index key.
     IndexedCall { predicate: String, index_register: usize },
-    // New: MultiIndexedCall uses multiple registers to build an index key.
+    // MultiIndexedCall uses multiple registers to build an index key.
     MultiIndexedCall { predicate: String, index_registers: Vec<usize> },
     // Arithmetic instructions.
     ArithmeticIs { target: usize, expression: Expression },
@@ -42,4 +47,43 @@ pub enum Instruction {
     RetractClause { predicate: String, address: usize },
     // Cut — prunes all choice points for the current predicate call.
     Cut,
+    // Puts a string constant in a register.
+    PutStr { register: usize, value: String },
+    /// Unifies the term in the register with the given string constant.
+    GetStr { register: usize, value: String },
+    /// Halt — stops the machine execution.
+    Halt,
+}
+
+impl Instruction {
+    /// Executes the instruction on the provided machine.
+    /// This method encapsulates the command logic for each instruction.
+    pub fn execute(&self, machine: &mut Machine) -> Result<(), MachineError> {
+        match self {
+            Instruction::PutConst { register, value } => machine.execute_put_const(*register, *value),
+            Instruction::PutVar { register, var_id, name } => machine.execute_put_var(*register, *var_id, name.clone()),
+            Instruction::GetConst { register, value } => machine.execute_get_const(*register, *value),
+            Instruction::GetVar { register, var_id, name } => machine.execute_get_var(*register, *var_id, name.clone()),
+            Instruction::Call { predicate } => machine.execute_call(predicate.clone()),
+            Instruction::Proceed => machine.execute_proceed(),
+            Instruction::Choice { alternative } => machine.execute_choice(*alternative),
+            Instruction::Allocate { n } => machine.execute_allocate(*n),
+            Instruction::Deallocate => machine.execute_deallocate(),
+            Instruction::ArithmeticIs { target, expression } => machine.execute_arithmetic_is(*target, expression.clone()),
+            Instruction::SetLocal { index, value } => machine.execute_set_local(*index, value.clone()),
+            Instruction::GetLocal { index, register } => machine.execute_get_local(*index, *register),
+            Instruction::Fail => machine.execute_fail(),
+            Instruction::GetStructure { register, functor, arity } => machine.execute_get_structure(*register, functor.clone(), *arity),
+            Instruction::IndexedCall { predicate, index_register } => machine.execute_indexed_call(predicate.clone(), *index_register),
+            Instruction::MultiIndexedCall { predicate, index_registers } => machine.execute_multi_indexed_call(predicate.clone(), index_registers.clone()),
+            Instruction::TailCall { predicate } => machine.execute_tail_call(predicate.clone()),
+            Instruction::AssertClause { predicate, address } => machine.execute_assert_clause(predicate.clone(), *address),
+            Instruction::RetractClause { predicate, address } => machine.execute_retract_clause(predicate.clone(), *address),
+            Instruction::Cut => machine.execute_cut(),
+            Instruction::BuildCompound { target, functor, arg_registers } => machine.execute_build_compound(*target, functor.clone(), arg_registers.clone()),
+            Instruction::PutStr { register, value } => machine.execute_put_str(*register, value.clone()),
+            Instruction::GetStr { register, value } => machine.execute_get_str(*register, value.clone()),
+            Instruction::Halt => Ok(()), // Halt will be handled in the run loop.
+        }
+    }
 }

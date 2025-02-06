@@ -6,4 +6,4 @@
 #     print(X).
 #
 PutConst 0 42
-Call print_registers
+Call print
