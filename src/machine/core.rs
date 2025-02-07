@@ -3,10 +3,11 @@
 //! Detailed logging is included to trace every logical inference step for debugging purposes.
 
 use std::collections::HashMap;
+use log::{debug, error, info};
+
 use crate::term::Term;
 use crate::union_find::UnionFind;
-use log::{debug, error, info};
-use thiserror::Error;
+use crate::error_handling::MachineError;
 
 use crate::arithmetic;
 use super::{
@@ -14,42 +15,6 @@ use super::{
     frame::Frame,
     choice_point::ChoicePoint,
 };
-
-/// The set of errors that can occur during execution of the LAM.
-#[derive(Debug, Error)]
-pub enum MachineError {
-    #[error("Register {0} is out of bounds.")]
-    RegisterOutOfBounds(usize),
-    #[error("Register {0} is uninitialized.")]
-    UninitializedRegister(usize),
-    #[error("Unification failed: {0}")]
-    UnificationFailed(String),
-    #[error("Environment missing.")]
-    EnvironmentMissing,
-    #[error("Predicate not found: {0}")]
-    PredicateNotFound(String),
-    #[error("Predicate clause not found: {0}")]
-    PredicateClauseNotFound(String),
-    #[error("No choice point available.")]
-    NoChoicePoint,
-    #[error("Structure mismatch: expected {expected_functor}/{expected_arity} but found {found_functor}/{found_arity}.")]
-    StructureMismatch {
-        expected_functor: String,
-        expected_arity: usize,
-        found_functor: String,
-        found_arity: usize,
-    },
-    #[error("Term in register {0} is not a compound term.")]
-    NotACompoundTerm(usize),
-    #[error("No indexed clause for predicate {0} with key {1:?}.")]
-    NoIndexedClause(String, crate::term::Term),
-    #[error("No index entry for predicate {0} with key {1:?}.")]
-    NoIndexEntry(String, crate::term::Term),
-    #[error("Predicate {0} is not in the index.")]
-    PredicateNotInIndex(String),
-    #[error("No more instructions.")]
-    NoMoreInstructions,
-}
 
 /// Built-in predicate type using the **Strategy Pattern**.
 pub type BuiltinPredicate = fn(&mut Machine) -> Result<(), MachineError>;
@@ -95,6 +60,8 @@ impl Machine {
         // Register example built-in predicates.
         machine.builtins.insert("print".to_string(), Machine::builtin_print);
         machine.builtins.insert("print_subst".to_string(), Machine::builtin_print_subst);
+        machine.builtins.insert("write".to_string(), Machine::builtin_write);
+        machine.builtins.insert("nl".to_string(), Machine::builtin_nl);
         machine
     }
 
@@ -128,6 +95,20 @@ impl Machine {
             }
         }
         println!("----------------------------");
+        Ok(())
+    }
+
+    fn builtin_write(&mut self) -> Result<(), MachineError> {
+        if let Some(Some(term)) = self.registers.get(0) {
+            print!("{}", term);
+            use std::io::{self, Write};
+            io::stdout().flush().unwrap();
+        }
+        Ok(())
+    }
+
+    fn builtin_nl(&mut self) -> Result<(), MachineError> {
+        println!();
         Ok(())
     }
 
@@ -615,4 +596,8 @@ impl Machine {
         }
         Ok(())
     }
+}
+
+pub fn ping() -> &'static str {
+    "pong"
 }

@@ -19,21 +19,44 @@ LAM has been built in Rust based on the principles presented in the book [Warren
 ├── Cargo.lock
 ├── Cargo.toml
 ├── README.md
+├── benches
+│   └── machine_bench.rs
+├── bin
+│   └── collect_source
 ├── docs
-│   └── GRAMMAR.md
+├── examples
+│   ├── instructions
+│   └── prolog
 ├── src
 │   ├── arithmetic.rs
+│   ├── assembler.rs
 │   ├── lambda.rs
+│   ├── languages
+│   │   └── prolog.rs
 │   ├── lib.rs
 │   ├── machine
 │   │   ├── choice_point.rs
 │   │   ├── frame.rs
 │   │   ├── instruction.rs
 │   │   ├── machine.rs
-│   │   ├── mod.rs
-│   │   └── trail.rs
+│   │   └── mod.rs
 │   ├── main.rs
-│   └── term.rs
+│   ├── parser.rs
+│   ├── term.rs
+│   └── union_find.rs
+├── target
+│   ├── CACHEDIR.TAG
+│   └── debug
+│       ├── build
+│       ├── deps
+│       ├── examples
+│       ├── incremental
+│       ├── lam
+│       ├── lam.d
+│       ├── liblam.d
+│       ├── liblam.rlib
+│       ├── prolog
+│       └── prolog.d
 └── tests
     ├── test_arithmetic.rs
     ├── test_backtracking_constants.rs
@@ -43,14 +66,17 @@ LAM has been built in Rust based on the principles presented in the book [Warren
     ├── test_cut.rs
     ├── test_dynamic_clause_management.rs
     ├── test_environment.rs
+    ├── test_error_conditions.rs
     ├── test_get_structure.rs
     ├── test_higher_order.rs
     ├── test_indexed_call.rs
+    ├── test_lambda.rs
     ├── test_machine.rs
     ├── test_path_inference.rs
     ├── test_tail_call.rs
     ├── test_term.rs
-    └── test_unification.rs
+    ├── test_unification.rs
+    └── test_unification_performance.rs
 ```
 
 ## Usage
@@ -67,8 +93,13 @@ To run the tests:
 cargo test
 ```
 
-Run the hello world program
+Run a hello world program directly in LAM with:
 
 ```bash
-cargo run examples/hello.lam
+cargo run examples/lam/hello.lam
 ```
+
+
+[[bin]]
+name = "prolog"
+path = "src/languages/prolog.rs"

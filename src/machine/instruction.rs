@@ -1,7 +1,7 @@
 use crate::term::Term;
 use crate::arithmetic::Expression;
-use crate::machine::MachineError;
-use crate::machine::machine::Machine; // Note the path to the Machine struct
+use crate::error_handling::MachineError;
+use crate::core::Machine;
 
 /// The `Instruction` enum represents all commands that the LAM can execute.
 /// Each variant corresponds to a specific operation in the abstract machine.

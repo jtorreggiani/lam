@@ -1,11 +1,7 @@
-//! Defines the structure for a choice point in the LAM.
-//! The choice point stores the machine's state to allow backtracking,
-//! following the **Memento Pattern**.
-
+use std::collections::HashMap;
 use crate::term::Term;
 use crate::machine::frame::Frame;
 use crate::union_find::UnionFind;
-use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct ChoicePoint {

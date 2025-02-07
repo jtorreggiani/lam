@@ -14,7 +14,3 @@ criterion = "0.4"
 [[bench]]
 name = "machine_bench"
 harness = false
-
-[[bin]]
-name = "prolog"
-path = "src/languages/prolog.rs"

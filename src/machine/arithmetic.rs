@@ -1,21 +1,16 @@
-//! Provides arithmetic expression evaluation for the LAM.
-//! This module defines an expression tree and an evaluator that computes integer results.
-
 use crate::term::Term;
-use crate::machine::MachineError;
+use crate::error_handling::MachineError;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
     Const(i32),
-    Var(usize), // Refers to a register index.
+    Var(usize),
     Add(Box<Expression>, Box<Expression>),
     Sub(Box<Expression>, Box<Expression>),
     Mul(Box<Expression>, Box<Expression>),
     Div(Box<Expression>, Box<Expression>),
 }
 
-/// Evaluates an arithmetic expression using the current machine registers.
-/// Detailed evaluation steps are logged for debugging purposes.
 pub fn evaluate(expr: &Expression, registers: &[Option<Term>]) -> Result<i32, MachineError> {
     match expr {
         Expression::Const(n) => Ok(*n),
@@ -33,8 +28,6 @@ pub fn evaluate(expr: &Expression, registers: &[Option<Term>]) -> Result<i32, Ma
     }
 }
 
-/// Parses a string into an arithmetic expression.
-/// This function is basic and supports simple expressions.
 pub fn parse_expression(expr: &str) -> Result<Expression, String> {
     let tokens: Vec<&str> = expr.split_whitespace().collect();
     if tokens.len() == 1 {

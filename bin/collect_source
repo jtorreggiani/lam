@@ -28,6 +28,7 @@ add_file src/term.rs
 add_file src/lambda.rs
 add_file src/main.rs
 add_file src/parser.rs
+add_file src/languages/prolog.rs
 
 # Add test files
 echo "" >> docs/source.rs
