@@ -159,6 +159,9 @@ impl Machine {
     }
 
     /// Runs the machine until a Halt instruction or the end of the code.
+    /// 
+    /// **Changed:** If a unification failure occurs and there is no choice point available,
+    /// return the unification failure error directly rather than trying to backtrack.
     pub fn run(&mut self) -> Result<(), MachineError> {
         while self.pc < self.code.len() {
             if let Some(Instruction::Halt) = self.code.get(self.pc) {
@@ -167,9 +170,12 @@ impl Machine {
             }
             match self.step() {
                 Ok(()) => {},
-                // If a unification failure occurs, try to backtrack.
-                Err(MachineError::UnificationFailed(_)) => {
-                    self.execute_fail()?;
+                Err(MachineError::UnificationFailed(msg)) => {
+                    if self.choice_stack.is_empty() {
+                        return Err(MachineError::UnificationFailed(msg));
+                    } else {
+                        self.execute_fail()?;
+                    }
                 },
                 Err(e) => return Err(e),
             }

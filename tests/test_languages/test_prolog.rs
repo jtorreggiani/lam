@@ -4,6 +4,7 @@ use lam::languages::prolog::ast::{
     PrologTerm
 };
 use lam::languages::prolog::parser::PrologParser;
+use std::process::Command;
 
 #[test]
 fn test_fact_ast() {
@@ -194,4 +195,38 @@ fn test_parse_program_with_comments() {
     assert_eq!(dir_body.len(), 2);
     assert_eq!(dir_body[0].predicate, "main");
     assert_eq!(dir_body[1].predicate, "halt");
+}
+
+#[test]
+fn test_family_tree_output() {
+    // Run the prolog binary with the sample program.
+    let output = Command::new("cargo")
+        .args(&["run", "--bin", "prolog", "examples/prolog/family_tree.pl"])
+        .output()
+        .expect("Failed to execute prolog binary");
+
+    // Convert stdout from bytes to a String.
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // For debugging purposes you can print the output:
+    // println!("Output:\n{}", stdout);
+
+    // Check that the expected solution lines appear.
+    // (Depending on your implementation, extra debug or logging lines may be printed.
+    //  In that case, you might simply check that each expected substring is present.)
+    assert!(
+        stdout.contains("jane-mary"),
+        "Output did not contain 'jane-mary':\n{}",
+        stdout
+    );
+    assert!(
+        stdout.contains("jane-tom"),
+        "Output did not contain 'jane-tom':\n{}",
+        stdout
+    );
+    assert!(
+        stdout.contains("mary-ann"),
+        "Output did not contain 'mary-ann':\n{}",
+        stdout
+    );
 }
