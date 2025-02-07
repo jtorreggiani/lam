@@ -1,7 +1,8 @@
 // tests/test_environment.rs
 
-use lam::machine::{Instruction, Machine};
-use lam::term::Term;
+use lam::machine::core::Machine;
+use lam::machine::instruction::Instruction;
+use lam::machine::term::Term;
 
 /// Test environment allocation, local variable assignment, and retrieval.
 ///

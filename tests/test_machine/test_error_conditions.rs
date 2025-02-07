@@ -1,4 +1,6 @@
-use lam::machine::{Machine, Instruction, MachineError};
+use lam::machine::error_handling::MachineError;
+use lam::machine::core::Machine;
+use lam::machine::instruction::Instruction;
 
 #[test]
 fn test_register_out_of_bounds_error() {

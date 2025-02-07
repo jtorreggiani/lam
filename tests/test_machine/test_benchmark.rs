@@ -1,8 +1,9 @@
 // tests/test_benchmark.rs
 
-use lam::arithmetic::Expression;
-use lam::machine::{Instruction, Machine};
-use lam::term::Term;
+use lam::machine::arithmetic::Expression;
+use lam::machine::instruction::Instruction;
+use lam::machine::core::Machine;
+use lam::machine::term::Term;
 use std::time::Instant;
 
 /// Benchmark test for the LAM.

@@ -1,5 +1,5 @@
-use lam::machine::Machine;
-use lam::term::Term;
+use lam::machine::core::Machine;
+use lam::machine::term::Term;
 
 #[test]
 fn test_compound_unification() {

@@ -1,4 +1,5 @@
-use lam::machine::{Instruction, Machine};
+use lam::machine::core::Machine;
+use lam::machine::instruction::Instruction;
 
 // This benchmark test sets up a simple graph and a recursive path predicate,
 // then runs the query `path(1, 3)` to search for a path from node 1 to node 3.

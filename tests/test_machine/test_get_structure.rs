@@ -1,4 +1,5 @@
-use lam::machine::{Instruction, Machine};
+use lam::machine::core::Machine;
+use lam::machine::instruction::Instruction;
 use lam::term::Term;
 
 /// Test for the GetStructure instruction.

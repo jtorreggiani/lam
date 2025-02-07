@@ -1,5 +1,5 @@
-use lam::term::Term;
-use lam::lambda::{substitute, beta_reduce};
+use lam::machine::term::Term;
+use lam::machine::lambda::{substitute, beta_reduce};
 
 #[test]
 fn test_substitution() {

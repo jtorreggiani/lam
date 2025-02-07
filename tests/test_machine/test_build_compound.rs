@@ -1,6 +1,7 @@
 // tests/test_build_compound.rs
 
-use lam::machine::{Machine, Instruction};
+use lam::machine::core::Machine;
+use lam::machine::instruction::Instruction;
 use lam::term::Term;
 
 /// Test for building compound terms dynamically from register values.

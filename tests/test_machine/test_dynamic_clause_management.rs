@@ -1,6 +1,7 @@
 // tests/test_dynamic_clause_management.rs
 
-use lam::machine::{Instruction, Machine};
+use lam::machine::core::Machine;
+use lam::machine::instruction::Instruction;
 use lam::term::Term;
 
 /// This test demonstrates dynamic clause management by asserting and retracting clauses.

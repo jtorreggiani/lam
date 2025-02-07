@@ -1,6 +1,7 @@
 // tests/test_backtracking_constants.rs
 
-use lam::machine::{Instruction, Machine};
+use lam::machine::core::Machine;
+use lam::machine::instruction::Instruction;
 use lam::term::Term;
 
 /// Test for validating the LAM's backtracking mechanism for constant values.

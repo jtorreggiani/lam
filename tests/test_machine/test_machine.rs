@@ -1,5 +1,6 @@
-use lam::machine::{Machine, Instruction};
-use lam::term::Term;
+use lam::machine::core::Machine;
+use lam::machine::instruction::Instruction;
+use lam::machine::term::Term;
 
 #[test]
 fn test_put_const_instruction() {

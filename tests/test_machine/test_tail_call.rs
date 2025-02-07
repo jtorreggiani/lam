@@ -1,7 +1,8 @@
 // tests/test_tail_call.rs
 
-use lam::machine::{Instruction, Machine};
-use lam::term::Term;
+use lam::machine::core::Machine;
+use lam::machine::instruction::Instruction;
+use lam::machine::term::Term;
 
 /// Test for tail-call optimization.
 ///

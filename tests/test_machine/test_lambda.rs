@@ -1,7 +1,7 @@
 // File: tests/test_lambda.rs
 
-use lam::lambda::{substitute, beta_reduce};
-use lam::term::Term;
+use lam::machine::lambda::{substitute, beta_reduce};
+use lam::machine::term::Term;
 
 /// Test capture-avoiding substitution in a simple scenario where no renaming is needed.
 /// 
