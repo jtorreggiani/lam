@@ -1,6 +1,9 @@
+// src/machine/unification.rs
+//! Union–find based unification for LAM.
+
 use std::collections::HashMap;
-use crate::term::Term;
-use crate::error_handling::MachineError;
+use crate::machine::term::Term;
+use crate::machine::error_handling::MachineError;
 
 #[derive(Debug, Clone)]
 pub struct UnionFind {
@@ -8,12 +11,14 @@ pub struct UnionFind {
 }
 
 impl UnionFind {
+    /// Creates a new UnionFind structure.
     pub fn new() -> Self {
         Self {
             bindings: HashMap::new(),
         }
     }
 
+    /// Recursively resolves a term to its current binding.
     pub fn resolve(&self, term: &Term) -> Term {
         match term {
             Term::Var(v) => {
@@ -27,12 +32,12 @@ impl UnionFind {
         }
     }
 
+    /// Binds the variable `var` to `term` (after resolution).
     pub fn bind(&mut self, var: usize, term: &Term) -> Result<(), MachineError> {
         let resolved_term = self.resolve(term);
-        // Prevent self-binding loops.
         if let Term::Var(v) = &resolved_term {
             if *v == var {
-                return Ok(())
+                return Ok(());
             }
         }
         self.bindings.insert(var, resolved_term);

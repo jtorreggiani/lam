@@ -1,6 +1,9 @@
-use log::{error};
-use thiserror::Error;
+// src/machine/error_handling.rs
+//! Error handling for the LAM machine.
+//!
+//! This module defines the `MachineError` enum for reporting various errors.
 
+use thiserror::Error;
 use crate::term::Term;
 
 #[derive(Debug, Error)]

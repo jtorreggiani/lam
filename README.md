@@ -24,59 +24,32 @@ LAM has been built in Rust based on the principles presented in the book [Warren
 ├── bin
 │   └── collect_source
 ├── docs
+│   └── source.rs
 ├── examples
 │   ├── instructions
 │   └── prolog
 ├── src
-│   ├── arithmetic.rs
-│   ├── assembler.rs
-│   ├── lambda.rs
 │   ├── languages
+│   │   ├── lam.rs
 │   │   └── prolog.rs
 │   ├── lib.rs
 │   ├── machine
+│   │   ├── arithmetic.rs
 │   │   ├── choice_point.rs
+│   │   ├── core.rs
+│   │   ├── error_handling.rs
+│   │   ├── execution.rs
 │   │   ├── frame.rs
 │   │   ├── instruction.rs
-│   │   ├── machine.rs
-│   │   └── mod.rs
-│   ├── main.rs
-│   ├── parser.rs
-│   ├── term.rs
-│   └── union_find.rs
-├── target
-│   ├── CACHEDIR.TAG
-│   └── debug
-│       ├── build
-│       ├── deps
-│       ├── examples
-│       ├── incremental
-│       ├── lam
-│       ├── lam.d
-│       ├── liblam.d
-│       ├── liblam.rlib
-│       ├── prolog
-│       └── prolog.d
+│   │   ├── lambda.rs
+│   │   ├── mod.rs
+│   │   ├── term.rs
+│   │   └── unification.rs
+│   └── main.rs
 └── tests
-    ├── test_arithmetic.rs
-    ├── test_backtracking_constants.rs
-    ├── test_backtracking_variables.rs
-    ├── test_benchmark.rs
-    ├── test_build_compound.rs
-    ├── test_cut.rs
-    ├── test_dynamic_clause_management.rs
-    ├── test_environment.rs
-    ├── test_error_conditions.rs
-    ├── test_get_structure.rs
-    ├── test_higher_order.rs
-    ├── test_indexed_call.rs
-    ├── test_lambda.rs
-    ├── test_machine.rs
-    ├── test_path_inference.rs
-    ├── test_tail_call.rs
-    ├── test_term.rs
-    ├── test_unification.rs
-    └── test_unification_performance.rs
+    ├── test_languages
+    ├── test_machine
+    └── test_main.rs
 ```
 
 ## Usage
@@ -84,6 +57,7 @@ LAM has been built in Rust based on the principles presented in the book [Warren
 To build LAM you need Rust and Cargo installed. You can build the project by running:
 
 ```bash
+cd lam
 cargo build
 ```
 
@@ -93,13 +67,18 @@ To run the tests:
 cargo test
 ```
 
+## Running LAM instructions
+
 Run a hello world program directly in LAM with:
 
 ```bash
 cargo run examples/lam/hello.lam
 ```
 
+## Running Prolog interpreter
 
-[[bin]]
-name = "prolog"
-path = "src/languages/prolog.rs"
+Since the LAM was derived from the WAM, prolog is the easiest language to implement. To run the test prolog interpreter:
+
+```bash
+cargo run --bin prolog
+```

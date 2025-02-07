@@ -1,6 +1,10 @@
-use std::collections::HashSet;
-use crate::term::Term;
+// src/machine/lambda.rs
+//! Lambda calculus utilities: free variable collection, substitution, and beta reduction.
 
+use std::collections::HashSet;
+use crate::machine::term::Term;
+
+/// Returns the set of free variable IDs in the term.
 fn free_vars(term: &Term) -> HashSet<usize> {
     match term {
         Term::Var(v) => {
@@ -38,7 +42,7 @@ fn free_vars(term: &Term) -> HashSet<usize> {
     }
 }
 
-/// Generates a fresh variable identifier that does not appear in either term.
+/// Generates a fresh variable ID not present in either term.
 fn generate_fresh_var(term: &Term, replacement: &Term) -> usize {
     let union: HashSet<usize> = free_vars(term).union(&free_vars(replacement)).cloned().collect();
     let mut fresh = 0;
@@ -48,15 +52,11 @@ fn generate_fresh_var(term: &Term, replacement: &Term) -> usize {
     fresh
 }
 
-/// Performs capture-avoiding substitution of a variable with a replacement term.
+/// Performs capture–avoiding substitution of variable `var` with `replacement` in `term`.
 pub fn substitute(term: &Term, var: usize, replacement: &Term) -> Term {
     match term {
         Term::Var(v) => {
-            if *v == var {
-                replacement.clone()
-            } else {
-                term.clone()
-            }
+            if *v == var { replacement.clone() } else { term.clone() }
         },
         Term::Const(_) | Term::Str(_) => term.clone(),
         Term::Compound(f, args) => {
@@ -89,7 +89,7 @@ pub fn substitute(term: &Term, var: usize, replacement: &Term) -> Term {
     }
 }
 
-/// Performs a single-step beta reduction on a lambda calculus application.
+/// Performs one step of beta reduction.
 pub fn beta_reduce(term: &Term) -> Term {
     match term {
         Term::App(fun, arg) => {

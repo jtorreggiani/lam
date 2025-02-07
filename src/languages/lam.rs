@@ -1,12 +1,14 @@
-//! Parses textual LAM programs into a vector of instructions.
+// src/machine/parser.rs
+//! Parser for textual LAM programs.
+//!
+//! Converts source code into a vector of Instructions.
 
-use crate::instruction::Instruction;
+use crate::machine::instruction::Instruction;
 
 pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
     let mut instructions = Vec::new();
     for (line_no, line) in input.lines().enumerate() {
         let line = line.trim();
-        // Skip blank lines and comments.
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
@@ -108,7 +110,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                 let target = tokens[1].parse::<usize>()
                     .map_err(|_| format!("Line {}: invalid target", line_no + 1))?;
                 let expr_str = tokens[2..].join(" ");
-                let expression = crate::arithmetic::parse_expression(&expr_str)
+                let expression = crate::machine::arithmetic::parse_expression(&expr_str)
                     .map_err(|e| format!("Line {}: ArithmeticIs expression error: {}", line_no + 1, e))?;
                 Instruction::ArithmeticIs { target, expression }
             }
@@ -120,7 +122,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                     .map_err(|_| format!("Line {}: invalid index", line_no + 1))?;
                 let value = tokens[2].parse::<i32>()
                     .map_err(|_| format!("Line {}: invalid value", line_no + 1))?;
-                Instruction::SetLocal { index, value: crate::term::Term::Const(value) }
+                Instruction::SetLocal { index, value: crate::machine::term::Term::Const(value) }
             }
             "GetLocal" => {
                 if tokens.len() != 3 {
