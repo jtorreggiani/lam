@@ -1,2 +1,3 @@
 PutStr 0 "Hello world"
 Call write
+Halt

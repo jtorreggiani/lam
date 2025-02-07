@@ -80,10 +80,18 @@ Call write
 cargo run --bin lam examples/lam/hello_world.lam
 ```
 
-## Running Prolog interpreter
+## Running a Prolog interpreter
 
-Since the LAM was derived from the WAM, prolog is the easiest language to implement. To run the test prolog interpreter:
+Since the LAM was derived from the WAM, prolog is the easiest language to implement. To run the test prolog REPL:
 
 ```bash
 cargo run --bin prolog
 ```
+
+You can also run a prolog file by providing the path to the file:
+
+```bash
+cargo run --bin prolog examples/prolog/hello_world.pl
+```
+
+Please note the prolog implementation is still in early stages of development and may not work as expected.

@@ -1,106 +1,500 @@
-//! A SWI‑Prolog–style interpreter built on top of the LAM abstract machine.
+//! A refactored Prolog interpreter built on top of the LAM abstract machine.
 //!
-//! In file mode (when a file argument is provided), the interpreter scans for an
-//! initialization directive (e.g., :- initialization(main).) and executes that goal
-//! programmatically—printing only the output produced by built‑ins.
+//! This interpreter supports a basic Prolog syntax including facts, rules, and queries,
+//! an initialization directive (e.g. `:- initialization(main).`), and a REPL that mimics
+//! SWI‑Prolog’s prompt and output.
 //!
-//! In REPL mode (no file argument), an interactive prompt is shown.
+//! In file mode, facts are compiled into clauses; in the interactive REPL, any input that
+//! does not begin with an assert, retract, or dynamic declaration is treated as a query.
+//!
+//! For example, in the REPL you can type:
+//!
+//!    assert(likes(john, pizza)).
+//!    true.
+//!
+//!    likes(X, pizza).
+//!    X = john .
+//!
+//! Notice that you do not have to type a leading `?-` (the prompt already shows `?- `).
 
 use std::collections::HashMap;
+use std::env;
+use std::fs;
 use std::io::{self, Write};
 
 use lam::machine::core::Machine;
 use lam::machine::instruction::Instruction;
 use lam::machine::term::Term;
 
-fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() > 1 {
-        // File mode: run program from file.
-        let filename = &args[1];
-        let content = std::fs::read_to_string(filename)
-            .expect("Failed to read the source file");
-        run_prolog_program(&content);
-    } else {
-        // REPL mode: start interactive prompt.
-        run_repl();
-    }
+/// A Prolog term: a constant, a string, a variable (if the identifier starts with an uppercase letter),
+/// or an atom.
+#[derive(Debug, Clone)]
+pub enum PrologTerm {
+    Const(i32),
+    Str(String),
+    Var(String),
+    Atom(String),
 }
 
-/// In file mode the interpreter compiles the file, looks for an initialization
-/// directive (e.g., :- initialization(main).), compiles that as the query, and runs it.
-fn run_prolog_program(source: &str) {
-    let mut db_code: Vec<Instruction> = Vec::new();
-    let mut predicate_table: HashMap<String, Vec<usize>> = HashMap::new();
-    let mut query_code: Option<Vec<Instruction>> = None;
+/// An atomic goal: a predicate and a (possibly empty) list of arguments.
+#[derive(Debug, Clone)]
+pub struct PrologGoal {
+    pub predicate: String,
+    pub args: Vec<PrologTerm>,
+}
 
-    for line in source.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('%') || trimmed.starts_with("//") {
-            continue;
+/// A clause (fact or rule). In a rule, the head and body are separated by ":-".
+#[derive(Debug, Clone)]
+pub struct PrologClause {
+    pub head: PrologGoal,
+    pub body: Option<Vec<PrologGoal>>, // None means fact; Some(goals) means rule.
+}
+
+/// Top-level commands.
+#[derive(Debug, Clone)]
+pub enum PrologCommand {
+    Clause(PrologClause),
+    Query(Vec<PrologGoal>),
+    AssertClause(PrologClause),
+    RetractClause(PrologClause),
+    DynamicDeclaration(String),
+}
+
+/// A simple recursive–descent parser for a Prolog–like language.
+struct PrologParser<'a> {
+    input: &'a str,
+    pos: usize,
+}
+
+impl<'a> PrologParser<'a> {
+    fn new(input: &'a str) -> Self {
+        Self { input, pos: 0 }
+    }
+
+    fn skip_whitespace(&mut self) {
+        while let Some(ch) = self.current_char() {
+            if ch.is_whitespace() {
+                self.pos += ch.len_utf8();
+            } else {
+                break;
+            }
         }
-        if trimmed.starts_with(":- initialization(") {
-            // Extract and compile the initialization goal.
-            let inner = extract_inner(trimmed, ":- initialization(");
-            query_code = Some(compile_query(inner));
-        } else if trimmed.starts_with("assert(") {
-            // Handle an assert command.
-            let inner = extract_inner(trimmed, "assert(");
-            let (code, pred, _arity) = compile_fact(inner);
-            let addr = db_code.len();
-            db_code.extend(code);
-            predicate_table.entry(pred).or_insert(Vec::new()).push(addr);
-        } else if trimmed.starts_with("retract(") {
-            let inner = extract_inner(trimmed, "retract(");
-            let success = retract_clause(&mut db_code, &mut predicate_table, inner);
-            println!("{}", if success { "true." } else { "false." });
+    }
+
+    fn current_char(&self) -> Option<char> {
+        self.input[self.pos..].chars().next()
+    }
+
+    /// Parse one command.
+    fn parse_command(&mut self) -> Result<Option<PrologCommand>, String> {
+        self.skip_whitespace();
+        if self.pos >= self.input.len() {
+            return Ok(None);
+        }
+        // Skip comment lines.
+        if self.input[self.pos..].starts_with("%") || self.input[self.pos..].starts_with("//") {
+            if let Some(newline_pos) = self.input[self.pos..].find('\n') {
+                self.pos += newline_pos + 1;
+            } else {
+                self.pos = self.input.len();
+            }
+            return self.parse_command();
+        }
+        // Check for initialization, assert, retract, dynamic declaration, or query.
+        if self.input[self.pos..].starts_with(":- initialization(") {
+            self.pos += ":- initialization(".len();
+            self.skip_whitespace();
+            let goals = self.parse_goal_sequence()?;
+            self.consume_expected(").")?;
+            return Ok(Some(PrologCommand::Query(goals)));
+        } else if self.input[self.pos..].starts_with("assert(") {
+            self.pos += "assert(".len();
+            let clause = self.parse_clause_in_assert()?;
+            self.consume_expected(").")?;
+            return Ok(Some(PrologCommand::AssertClause(clause)));
+        } else if self.input[self.pos..].starts_with("retract(") {
+            self.pos += "retract(".len();
+            let clause = self.parse_clause()?;
+            self.consume_expected(").")?;
+            return Ok(Some(PrologCommand::RetractClause(clause)));
+        } else if self.input[self.pos..].starts_with(":- dynamic(") {
+            self.pos += ":- dynamic(".len();
+            self.skip_whitespace();
+            let start = self.pos;
+            while let Some(ch) = self.current_char() {
+                if ch == '/' { break; }
+                self.pos += ch.len_utf8();
+            }
+            let pred = self.input[start..self.pos].trim().to_string();
+            self.consume_expected(").")?;
+            return Ok(Some(PrologCommand::DynamicDeclaration(pred)));
+        } else if self.input[self.pos..].starts_with("?-") {
+            // Strip leading "?-"
+            self.pos += 2;
+            self.skip_whitespace();
+            let goals = self.parse_goal_sequence()?;
+            self.consume_expected(".")?;
+            return Ok(Some(PrologCommand::Query(goals)));
         } else {
-            // Otherwise, treat it as a fact clause.
-            let (code, pred, _arity) = compile_fact(trimmed);
-            let addr = db_code.len();
-            db_code.extend(code);
-            predicate_table.entry(pred).or_insert(Vec::new()).push(addr);
+            // In file mode, a clause is expected.
+            let clause = self.parse_clause()?;
+            return Ok(Some(PrologCommand::Clause(clause)));
         }
     }
 
-    if query_code.is_none() {
-        println!("No initialization query found in the program.");
-        return;
+    fn parse_goal_sequence(&mut self) -> Result<Vec<PrologGoal>, String> {
+        let mut goals = Vec::new();
+        loop {
+            let goal = self.parse_goal_atom()?;
+            goals.push(goal);
+            self.skip_whitespace();
+            if self.input[self.pos..].starts_with(",") {
+                self.pos += 1;
+                self.skip_whitespace();
+            } else {
+                break;
+            }
+        }
+        Ok(goals)
     }
-    let query_code = query_code.unwrap();
-    let query_start = db_code.len();
-    let mut full_code = db_code;
-    full_code.extend(query_code);
 
-    let mut machine = Machine::new(100, full_code);
-    machine.pc = query_start;
-    for (pred, addrs) in predicate_table.into_iter() {
-        for addr in addrs {
-            machine.register_predicate(pred.clone(), addr);
+    /// Parse an atomic goal. If no '(' follows the identifier, assume no arguments.
+    fn parse_goal_atom(&mut self) -> Result<PrologGoal, String> {
+        self.skip_whitespace();
+        let predicate = self.parse_identifier()?;
+        self.skip_whitespace();
+        let args = if self.input[self.pos..].starts_with("(") {
+            self.consume_expected("(")?;
+            let args = self.parse_arguments()?;
+            self.consume_expected(")")?;
+            args
+        } else {
+            Vec::new()
+        };
+        Ok(PrologGoal { predicate, args })
+    }
+
+    fn parse_clause(&mut self) -> Result<PrologClause, String> {
+        self.skip_whitespace();
+        let head = self.parse_goal_atom()?;
+        self.skip_whitespace();
+        let body = if self.input[self.pos..].starts_with(":-") {
+            self.pos += 2;
+            self.skip_whitespace();
+            let goals = self.parse_goal_sequence()?;
+            Some(goals)
+        } else {
+            None
+        };
+        self.consume_expected(".")?;
+        Ok(PrologClause { head, body })
+    }
+
+    /// Parse a clause for an assert (no trailing period required).
+    fn parse_clause_in_assert(&mut self) -> Result<PrologClause, String> {
+        self.skip_whitespace();
+        let head = self.parse_goal_atom()?;
+        self.skip_whitespace();
+        let body = if self.input[self.pos..].starts_with(":-") {
+            self.pos += 2;
+            self.skip_whitespace();
+            let goals = self.parse_goal_sequence()?;
+            Some(goals)
+        } else {
+            None
+        };
+        Ok(PrologClause { head, body })
+    }
+
+    fn parse_arguments(&mut self) -> Result<Vec<PrologTerm>, String> {
+        let mut args = Vec::new();
+        loop {
+            self.skip_whitespace();
+            let term = self.parse_term()?;
+            args.push(term);
+            self.skip_whitespace();
+            if self.input[self.pos..].starts_with(",") {
+                self.pos += 1;
+            } else {
+                break;
+            }
+        }
+        Ok(args)
+    }
+
+    fn parse_term(&mut self) -> Result<PrologTerm, String> {
+        self.skip_whitespace();
+        if let Some(ch) = self.current_char() {
+            if ch.is_digit(10) {
+                self.parse_number().map(PrologTerm::Const)
+            } else if ch == '"' {
+                self.parse_string().map(PrologTerm::Str)
+            } else if ch.is_uppercase() {
+                self.parse_identifier().map(PrologTerm::Var)
+            } else {
+                self.parse_identifier().map(PrologTerm::Atom)
+            }
+        } else {
+            Err("Unexpected end of input while parsing term".to_string())
         }
     }
-    machine.verbose = false; // Suppress extra diagnostic output.
-    match machine.run() {
-        Ok(_) => {
-            // In file mode, the built-in predicates produce the desired output.
+
+    fn parse_number(&mut self) -> Result<i32, String> {
+        let start = self.pos;
+        while let Some(ch) = self.current_char() {
+            if ch.is_digit(10) {
+                self.pos += ch.len_utf8();
+            } else {
+                break;
+            }
         }
-        Err(e) => {
-            println!("Error during execution: {}", e);
+        self.input[start..self.pos].parse::<i32>().map_err(|e| e.to_string())
+    }
+
+    fn parse_string(&mut self) -> Result<String, String> {
+        self.pos += 1; // skip opening quote
+        let start = self.pos;
+        while let Some(ch) = self.current_char() {
+            if ch == '"' {
+                let s = self.input[start..self.pos].to_string();
+                self.pos += 1; // skip closing quote
+                return Ok(s);
+            }
+            self.pos += ch.len_utf8();
+        }
+        Err("Unterminated string literal".to_string())
+    }
+
+    fn parse_identifier(&mut self) -> Result<String, String> {
+        self.skip_whitespace();
+        let start = self.pos;
+        while let Some(ch) = self.current_char() {
+            if ch.is_alphanumeric() || ch == '_' {
+                self.pos += ch.len_utf8();
+            } else {
+                break;
+            }
+        }
+        if start == self.pos {
+            Err("Expected identifier".to_string())
+        } else {
+            Ok(self.input[start..self.pos].to_string())
+        }
+    }
+
+    fn consume_expected(&mut self, expected: &str) -> Result<(), String> {
+        self.skip_whitespace();
+        if self.input[self.pos..].starts_with(expected) {
+            self.pos += expected.len();
+            Ok(())
+        } else {
+            Err(format!("Expected '{}'", expected))
         }
     }
 }
 
-/// The REPL prints a ?- prompt and reads commands interactively.
-fn run_repl() {
-    let mut db_code: Vec<Instruction> = Vec::new();
+/// Compiler functions convert AST nodes into LAM instructions.
+
+fn compile_clause(clause: &PrologClause) -> (Vec<Instruction>, String) {
+    let mut instructions = Vec::new();
+    let arity = clause.head.args.len();
+    let mut var_map = HashMap::new();
+    let mut next_var_id = 1000;
+    // Compile the head with Get–instructions.
+    for (i, arg) in clause.head.args.iter().enumerate() {
+        match arg {
+            PrologTerm::Const(n) => {
+                instructions.push(Instruction::GetConst { register: i, value: *n });
+            }
+            PrologTerm::Str(s) => {
+                instructions.push(Instruction::GetStr { register: i, value: s.clone() });
+            }
+            PrologTerm::Var(name) => {
+                let var_id = *var_map.entry(name.clone()).or_insert_with(|| {
+                    let id = next_var_id;
+                    next_var_id += 1;
+                    id
+                });
+                instructions.push(Instruction::GetVar { register: i, var_id, name: name.clone() });
+            }
+            PrologTerm::Atom(a) => {
+                instructions.push(Instruction::GetStr { register: i, value: a.clone() });
+            }
+        }
+    }
+    instructions.push(Instruction::BuildCompound {
+        target: arity,
+        functor: clause.head.predicate.clone(),
+        arg_registers: (0..arity).collect(),
+    });
+    if let Some(body_goals) = &clause.body {
+        for goal in body_goals {
+            let goal_instr = compile_goal(goal);
+            instructions.extend(goal_instr);
+        }
+    }
+    instructions.push(Instruction::Proceed);
+    (instructions, clause.head.predicate.clone())
+}
+
+fn compile_goal(goal: &PrologGoal) -> Vec<Instruction> {
+    let mut instructions = Vec::new();
+    let arity = goal.args.len();
+    let mut var_map = HashMap::new();
+    let mut next_var_id = 100;
+    for (i, arg) in goal.args.iter().enumerate() {
+        match arg {
+            PrologTerm::Const(n) => {
+                instructions.push(Instruction::PutConst { register: i, value: *n });
+            }
+            PrologTerm::Str(s) => {
+                instructions.push(Instruction::PutStr { register: i, value: s.clone() });
+            }
+            PrologTerm::Var(name) => {
+                let var_id = *var_map.entry(name.clone()).or_insert_with(|| {
+                    let id = next_var_id;
+                    next_var_id += 1;
+                    id
+                });
+                instructions.push(Instruction::PutVar { register: i, var_id, name: name.clone() });
+            }
+            PrologTerm::Atom(a) => {
+                instructions.push(Instruction::PutStr { register: i, value: a.clone() });
+            }
+        }
+    }
+    instructions.push(Instruction::BuildCompound {
+        target: arity,
+        functor: goal.predicate.clone(),
+        arg_registers: (0..arity).collect(),
+    });
+    instructions.push(Instruction::Call { predicate: goal.predicate.clone() });
+    instructions.push(Instruction::Proceed);
+    instructions
+}
+
+/// Compile a query into LAM instructions and return a mapping from query variable IDs to names.
+fn compile_query(goals: &[PrologGoal]) -> (Vec<Instruction>, HashMap<usize, String>) {
+    let mut instructions = Vec::new();
+    let mut var_map = HashMap::new();
+    let mut query_var_names = HashMap::new();
+    let mut next_var_id = 100;
+    for goal in goals {
+        let arity = goal.args.len();
+        for (i, arg) in goal.args.iter().enumerate() {
+            match arg {
+                PrologTerm::Const(n) => {
+                    instructions.push(Instruction::PutConst { register: i, value: *n });
+                }
+                PrologTerm::Str(s) => {
+                    instructions.push(Instruction::PutStr { register: i, value: s.clone() });
+                }
+                PrologTerm::Var(name) => {
+                    let var_id = *var_map.entry(name.clone()).or_insert_with(|| {
+                        let id = next_var_id;
+                        next_var_id += 1;
+                        id
+                    });
+                    query_var_names.insert(var_id, name.clone());
+                    instructions.push(Instruction::PutVar { register: i, var_id, name: name.clone() });
+                }
+                PrologTerm::Atom(a) => {
+                    instructions.push(Instruction::PutStr { register: i, value: a.clone() });
+                }
+            }
+        }
+        instructions.push(Instruction::BuildCompound {
+            target: arity,
+            functor: goal.predicate.clone(),
+            arg_registers: (0..arity).collect(),
+        });
+        instructions.push(Instruction::Call { predicate: goal.predicate.clone() });
+        instructions.push(Instruction::Proceed);
+    }
+    instructions.push(Instruction::Halt);
+    (instructions, query_var_names)
+}
+
+/// Run a Prolog program from a file.
+pub fn run_prolog_program(source: &str) {
+    let mut parser = PrologParser::new(source);
+    let mut commands = Vec::new();
+    while let Ok(Some(cmd)) = parser.parse_command() {
+        commands.push(cmd);
+    }
+    let mut db_code = Vec::new();
+    let mut predicate_table: HashMap<String, Vec<usize>> = HashMap::new();
+    let mut query_code: Option<(Vec<Instruction>, HashMap<usize, String>)> = None;
+    for cmd in commands {
+        match cmd {
+            PrologCommand::Query(goals) => {
+                query_code = Some(compile_query(&goals));
+            }
+            PrologCommand::Clause(clause) => {
+                let (code, pred) = compile_clause(&clause);
+                let addr = db_code.len();
+                db_code.extend(code);
+                predicate_table.entry(pred).or_insert_with(Vec::new).push(addr);
+            }
+            PrologCommand::AssertClause(clause) => {
+                let (code, pred) = compile_clause(&clause);
+                let addr = db_code.len();
+                db_code.extend(code);
+                predicate_table.entry(pred).or_insert_with(Vec::new).push(addr);
+                println!("true.");
+            }
+            PrologCommand::RetractClause(_clause) => {
+                println!("Retract not yet implemented in the interpreter.");
+            }
+            PrologCommand::DynamicDeclaration(pred) => {
+                println!("Dynamic declaration for predicate '{}' noted.", pred);
+            }
+        }
+    }
+    if let Some((query_instr, query_var_names)) = query_code {
+        let query_start = db_code.len();
+        let mut full_code = db_code;
+        full_code.extend(query_instr);
+        let mut machine = Machine::new(100, full_code);
+        machine.pc = query_start;
+        for (pred, addrs) in predicate_table {
+            for addr in addrs {
+                machine.register_predicate(pred.clone(), addr);
+            }
+        }
+        machine.variable_names = query_var_names;
+        machine.verbose = false;
+        match machine.run() {
+            Ok(_) => {
+                if machine.variable_names.is_empty() {
+                    println!("true.");
+                } else {
+                    for (var_id, name) in machine.variable_names.iter() {
+                        let binding = machine.uf.resolve(&Term::Var(*var_id));
+                        match binding {
+                            Term::Str(ref s) => println!("{} = {} .", name, s),
+                            _ => println!("{} = {} .", name, binding),
+                        }
+                    }
+                }
+            }
+            Err(_) => {
+                println!("false.");
+            }
+        }
+    }
+}
+
+/// Run an interactive REPL.
+pub fn run_repl() {
+    let mut db_code = Vec::new();
     let mut predicate_table: HashMap<String, Vec<usize>> = HashMap::new();
 
-    println!("Welcome to LAM Prolog REPL.");
-    println!("Enter queries (e.g., ?- hello(X).) and commands such as:");
-    println!("  assert(<clause>).    to add a clause,");
-    println!("  retract(<clause>).   to remove a clause, and");
-    println!("  :- dynamic(<pred>/<arity>).   to declare a predicate dynamic.");
-    println!("Type 'halt.' or 'quit.' to exit.\n");
+    println!("Welcome to the refactored LAM Prolog REPL.");
+    println!("Enter queries (e.g., parent(\"alice\", X).) or commands such as:");
+    println!("  assert(<clause>).    to add a clause");
+    println!("  retract(<clause>).   to remove a clause");
+    println!("  :- dynamic(<pred>/<arity>).   to declare a predicate dynamic.\n");
 
     loop {
         print!("?- ");
@@ -113,221 +507,105 @@ fn run_repl() {
         if trimmed.eq_ignore_ascii_case("halt.") || trimmed.eq_ignore_ascii_case("quit.") {
             break;
         }
-        // Remove any duplicate leading ?-.
-        let cleaned = if trimmed.starts_with("?-") {
-            trimmed.trim_start_matches("?-").trim()
+        // In the REPL we do not require a leading "?-". Any input not starting with a known command
+        // is treated as a query.
+        let query_input = if trimmed.starts_with("assert(")
+            || trimmed.starts_with("retract(")
+            || trimmed.starts_with(":- dynamic(")
+        {
+            trimmed.to_string()
         } else {
-            trimmed
+            // If the user types a leading "?-", remove it.
+            if trimmed.starts_with("?-") {
+                trimmed.trim_start_matches("?-").trim().to_string()
+            } else {
+                trimmed.to_string()
+            }
         };
 
-        if cleaned.starts_with("assert(") {
-            let inner = extract_inner(cleaned, "assert(");
-            let (code, pred, _arity) = compile_fact(inner);
-            let addr = db_code.len();
-            db_code.extend(code);
-            predicate_table.entry(pred).or_insert(Vec::new()).push(addr);
-            println!("true.");
-        } else if cleaned.starts_with("retract(") {
-            let inner = extract_inner(cleaned, "retract(");
-            if retract_clause(&mut db_code, &mut predicate_table, inner) {
-                println!("true.");
-            } else {
-                println!("false.");
-            }
-        } else if cleaned.starts_with(":- dynamic(") {
-            // For now, just acknowledge dynamic declarations.
-            println!("true.");
-        } else if cleaned.starts_with(":- initialization(") {
-            let inner = extract_inner(cleaned, ":- initialization(");
-            let query_instr = compile_query(inner);
-            let query_start = db_code.len();
-            let mut full_code = db_code.clone();
-            full_code.extend(query_instr);
-            let mut machine = Machine::new(100, full_code);
-            machine.pc = query_start;
-            for (pred, addrs) in predicate_table.iter() {
-                for &addr in addrs {
-                    machine.register_predicate(pred.clone(), addr);
-                }
-            }
-            machine.verbose = false;
-            match machine.run() {
-                Ok(_) => {
-                    println!("Yes.");
-                }
-                Err(e) => {
-                    println!("No. ({})", e);
-                }
-            }
-        } else {
-            let query_instr = compile_query(cleaned);
-            let query_start = db_code.len();
-            let mut full_code = db_code.clone();
-            full_code.extend(query_instr);
-            let mut machine = Machine::new(100, full_code);
-            machine.pc = query_start;
-            for (pred, addrs) in predicate_table.iter() {
-                for &addr in addrs {
-                    machine.register_predicate(pred.clone(), addr);
-                }
-            }
-            machine.verbose = false;
-            match machine.run() {
-                Ok(_) => {
-                    println!("Yes.");
-                    for (var_id, name) in machine.variable_names.iter() {
-                        let binding = machine.uf.resolve(&Term::Var(*var_id));
-                        println!("  {} = {:?}", name, binding);
+        let mut parser = PrologParser::new(&query_input);
+        match parser.parse_command() {
+            Ok(Some(cmd)) => {
+                // In the REPL, if the input was a fact (Clause) rather than a Query,
+                // convert it to a Query so that a query is executed.
+                let cmd = match cmd {
+                    PrologCommand::Clause(cl) => PrologCommand::Query(vec![cl.head]),
+                    other => other,
+                };
+                match cmd {
+                    PrologCommand::Query(goals) => {
+                        let (query_instr, query_var_names) = compile_query(&goals);
+                        let query_start = db_code.len();
+                        let mut full_code = db_code.clone();
+                        full_code.extend(query_instr);
+                        let mut machine = Machine::new(100, full_code);
+                        machine.pc = query_start;
+                        for (pred, addrs) in &predicate_table {
+                            for &addr in addrs {
+                                machine.register_predicate(pred.clone(), addr);
+                            }
+                        }
+                        machine.variable_names = query_var_names;
+                        machine.verbose = false;
+                        match machine.run() {
+                            Ok(_) => {
+                                if machine.variable_names.is_empty() {
+                                    println!("true.");
+                                } else {
+                                    for (var_id, name) in machine.variable_names.iter() {
+                                        let binding = machine.uf.resolve(&Term::Var(*var_id));
+                                        match binding {
+                                            Term::Str(ref s) => println!("{} = {} .", name, s),
+                                            _ => println!("{} = {} .", name, binding),
+                                        }
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                println!("false.");
+                            }
+                        }
                     }
+                    PrologCommand::AssertClause(clause) => {
+                        let (code, pred) = compile_clause(&clause);
+                        let addr = db_code.len();
+                        db_code.extend(code);
+                        predicate_table.entry(pred).or_insert_with(Vec::new).push(addr);
+                        println!("true.");
+                    }
+                    PrologCommand::RetractClause(_clause) => {
+                        println!("Retract not yet implemented.");
+                    }
+                    PrologCommand::DynamicDeclaration(pred) => {
+                        println!("Dynamic declaration noted for predicate '{}'.", pred);
+                    }
+                    _ => { }
                 }
-                Err(e) => {
-                    println!("No. ({})", e);
-                }
+            }
+            Ok(None) => { }
+            Err(e) => {
+                println!("Parse error: {}", e);
             }
         }
     }
     println!("Goodbye.");
 }
 
-/// Helper: extracts the inner text from commands like "assert(...)." or ":- initialization(...)."
-fn extract_inner<'a>(input: &'a str, prefix: &str) -> &'a str {
-    let without_prefix = input.trim_start_matches(prefix).trim();
-    let without_trailing = if without_prefix.ends_with(").") {
-        &without_prefix[..without_prefix.len() - 2]
-    } else if without_prefix.ends_with(")") {
-        &without_prefix[..without_prefix.len() - 1]
+/// Entry point. If a filename is provided as a command-line argument, run in file mode;
+/// otherwise, start the REPL.
+pub fn start() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() > 1 {
+        let filename = &args[1];
+        let content = fs::read_to_string(filename)
+            .unwrap_or_else(|_| panic!("Failed to read file: {}", filename));
+        run_prolog_program(&content);
     } else {
-        without_prefix
-    };
-    without_trailing.trim()
+        run_repl();
+    }
 }
 
-/// For simplicity, retract_clause removes the first clause registered for the predicate
-/// named in the given clause text.
-fn retract_clause(
-    _db_code: &mut Vec<Instruction>,
-    predicate_table: &mut HashMap<String, Vec<usize>>,
-    clause: &str,
-) -> bool {
-    let (_code, pred, _arity) = compile_fact(clause);
-    if let Some(clause_addrs) = predicate_table.get_mut(&pred) {
-        if !clause_addrs.is_empty() {
-            clause_addrs.remove(0);
-            return true;
-        }
-    }
-    false
-}
-
-/// Compiles a fact clause (of the form: predicate(arg1, arg2, ..., argN).)
-/// into a sequence of LAM instructions using Get‑instructions (for unification).
-fn compile_fact(line: &str) -> (Vec<Instruction>, String, usize) {
-    let line = line.trim().trim_end_matches('.').trim();
-    let open_paren = line.find('(').expect("Expected '(' in fact");
-    let close_paren = line.rfind(')').expect("Expected ')' in fact");
-    let pred = line[..open_paren].trim().to_string();
-    let args_str = &line[open_paren + 1..close_paren];
-    let args: Vec<&str> = args_str.split(',').map(|s| s.trim()).collect();
-    let arity = args.len();
-
-    let mut instructions = Vec::new();
-    let mut var_map: HashMap<String, usize> = HashMap::new();
-    let mut next_var_id = 1000;
-
-    for (i, arg) in args.iter().enumerate() {
-        let term = parse_term(arg, &mut var_map, &mut next_var_id);
-        match term {
-            Term::Const(n) => {
-                instructions.push(Instruction::GetConst { register: i, value: n });
-            }
-            Term::Str(s) => {
-                instructions.push(Instruction::GetStr { register: i, value: s });
-            }
-            Term::Var(var_id) => {
-                instructions.push(Instruction::GetVar {
-                    register: i,
-                    var_id,
-                    name: arg.to_string(),
-                });
-            }
-            _ => {}
-        }
-    }
-    let reg_list: Vec<usize> = (0..arity).collect();
-    instructions.push(Instruction::BuildCompound {
-        target: arity,
-        functor: pred.clone(),
-        arg_registers: reg_list,
-    });
-    instructions.push(Instruction::Proceed);
-    (instructions, pred, arity)
-}
-
-/// Compiles a query (of the form: predicate(arg1, arg2, ..., argN).)
-/// into a sequence of LAM instructions using Put‑instructions to build the goal.
-fn compile_query(line: &str) -> Vec<Instruction> {
-    let line = line.trim().trim_end_matches('.').trim();
-    let open_paren = line.find('(').expect("Expected '(' in query");
-    let close_paren = line.rfind(')').expect("Expected ')' in query");
-    let pred = line[..open_paren].trim().to_string();
-    let args_str = &line[open_paren + 1..close_paren];
-    let args: Vec<&str> = args_str.split(',').map(|s| s.trim()).collect();
-    let arity = args.len();
-
-    let mut instructions = Vec::new();
-    let mut var_map: HashMap<String, usize> = HashMap::new();
-    let mut next_var_id = 100;
-
-    for (i, arg) in args.iter().enumerate() {
-        let term = parse_term(arg, &mut var_map, &mut next_var_id);
-        match term {
-            Term::Const(n) => {
-                instructions.push(Instruction::PutConst { register: i, value: n });
-            }
-            Term::Str(s) => {
-                instructions.push(Instruction::PutStr { register: i, value: s });
-            }
-            Term::Var(var_id) => {
-                instructions.push(Instruction::PutVar {
-                    register: i,
-                    var_id,
-                    name: arg.to_string(),
-                });
-            }
-            _ => {}
-        }
-    }
-    let reg_list: Vec<usize> = (0..arity).collect();
-    instructions.push(Instruction::BuildCompound {
-        target: arity,
-        functor: pred.clone(),
-        arg_registers: reg_list,
-    });
-    instructions.push(Instruction::Call { predicate: pred });
-    instructions.push(Instruction::Proceed);
-    instructions.push(Instruction::Halt);
-    instructions
-}
-
-/// A simple term parser that distinguishes integers, quoted strings, variables (tokens
-/// beginning with an uppercase letter), and atoms.
-fn parse_term(s: &str, var_map: &mut HashMap<String, usize>, next_var_id: &mut usize) -> Term {
-    if let Ok(n) = s.parse::<i32>() {
-        return Term::Const(n);
-    }
-    if s.starts_with('"') && s.ends_with('"') {
-        return Term::Str(s.trim_matches('"').to_string());
-    }
-    if s.chars().next().unwrap().is_uppercase() {
-        if let Some(&id) = var_map.get(s) {
-            return Term::Var(id);
-        } else {
-            let id = *next_var_id;
-            *next_var_id += 1;
-            var_map.insert(s.to_string(), id);
-            return Term::Var(id);
-        }
-    }
-    // Otherwise, treat it as an atom.
-    Term::Str(s.to_string())
+fn main() {
+    env_logger::init();
+    start();
 }

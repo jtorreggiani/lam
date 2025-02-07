@@ -1,4 +1,3 @@
 :- initialization(main).
 
-main :-
-    write('Hello, World!'), nl.
+main :- write("Hello, world!"), nl, halt.
