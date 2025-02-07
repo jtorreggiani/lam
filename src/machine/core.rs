@@ -3,16 +3,16 @@
 
 use std::collections::HashMap;
 use log::debug;
-use crate::machine::term::Term;
-use crate::machine::error_handling::MachineError;
-use crate::machine::arithmetic;
-use crate::machine::instruction::Instruction;
-use crate::machine::frame::Frame;
+
 use crate::machine::choice_point::ChoicePoint;
+use crate::machine::error_handling::MachineError;
+use crate::machine::frame::Frame;
+use crate::machine::instruction::Instruction;
+use crate::machine::term::Term;
 use crate::machine::unification::UnionFind;
 
 // Re-export the execution methods.
-pub use crate::machine::execution::*;
+// pub use crate::machine::execution::*;
 
 ///
 /// The built–in predicate function type.

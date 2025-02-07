@@ -4,7 +4,6 @@
 //! This module implements the methods that execute each instruction on a Machine.
 
 use crate::machine::core::Machine;
-use crate::machine::instruction::Instruction;
 use crate::machine::frame::Frame;
 use crate::machine::choice_point::ChoicePoint;
 use crate::machine::term::Term;

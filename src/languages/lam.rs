@@ -3,7 +3,12 @@
 //!
 //! Converts source code into a vector of Instructions.
 
-use crate::machine::instruction::Instruction;
+use lam::machine::instruction::Instruction;
+use lam::machine::arithmetic::{parse_expression};
+use lam::machine::term::Term;
+use lam::machine::core::Machine;
+use std::env;
+use std::fs;
 
 pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
     let mut instructions = Vec::new();
@@ -110,7 +115,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                 let target = tokens[1].parse::<usize>()
                     .map_err(|_| format!("Line {}: invalid target", line_no + 1))?;
                 let expr_str = tokens[2..].join(" ");
-                let expression = crate::machine::arithmetic::parse_expression(&expr_str)
+                let expression = parse_expression(&expr_str)
                     .map_err(|e| format!("Line {}: ArithmeticIs expression error: {}", line_no + 1, e))?;
                 Instruction::ArithmeticIs { target, expression }
             }
@@ -122,7 +127,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                     .map_err(|_| format!("Line {}: invalid index", line_no + 1))?;
                 let value = tokens[2].parse::<i32>()
                     .map_err(|_| format!("Line {}: invalid value", line_no + 1))?;
-                Instruction::SetLocal { index, value: crate::machine::term::Term::Const(value) }
+                Instruction::SetLocal { index, value: Term::Const(value) }
             }
             "GetLocal" => {
                 if tokens.len() != 3 {
@@ -214,4 +219,28 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
         instructions.push(instr);
     }
     Ok(instructions)
+}
+
+fn main() {
+    // Initialize the logger (env_logger reads log level from RUST_LOG).
+    env_logger::init();
+    // Expect the program filename as the first command-line argument.
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        eprintln!("Usage: cargo run <program.lam>");
+        return;
+    }
+    let filename = &args[1];
+    let program_str = fs::read_to_string(filename)
+        .expect(&format!("Failed to read file: {}", filename));
+    // Parse the program text into a vector of LAM instructions.
+    let instructions = parse_program(&program_str)
+        .expect("Failed to parse program");
+    // Create the machine (with a generous register count) and enable verbose logging.
+    let mut machine = Machine::new(100, instructions);
+    machine.verbose = true;
+    // Run the machine and report any errors.
+    if let Err(e) = machine.run() {
+        eprintln!("Error during execution: {}", e);
+    }
 }
