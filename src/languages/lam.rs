@@ -1,15 +1,53 @@
-// src/machine/parser.rs
+// Combined Rust source code for the LAM interpreter.
+// File: src/languages/lam.rs
+
 //! Parser for textual LAM programs.
 //!
 //! Converts source code into a vector of Instructions.
 
 use lam::machine::instruction::Instruction;
-use lam::machine::arithmetic::{parse_expression};
+use lam::machine::arithmetic::parse_expression;
 use lam::machine::term::Term;
 use lam::machine::core::Machine;
 use std::env;
 use std::fs;
 
+/// Splits the input line into tokens while keeping quoted strings together.
+/// For example, the line:
+///
+///     PutStr 0 "Hello world"
+///
+/// will be tokenized as:
+///
+///     ["PutStr", "0", "\"Hello world\""]
+fn tokenize_line(line: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    for c in line.chars() {
+        match c {
+            '"' => {
+                in_quotes = !in_quotes;
+                current.push(c); // Keep the quotes so we can trim them later.
+            }
+            c if c.is_whitespace() && !in_quotes => {
+                if !current.is_empty() {
+                    tokens.push(current.clone());
+                    current.clear();
+                }
+            }
+            _ => {
+                current.push(c);
+            }
+        }
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+    tokens
+}
+
+/// Parses a LAM program (given as a string) into a vector of Instructions.
 pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
     let mut instructions = Vec::new();
     for (line_no, line) in input.lines().enumerate() {
@@ -17,11 +55,13 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        let tokens: Vec<&str> = line.split_whitespace().collect();
+        // Use the new tokenizer instead of simple whitespace splitting.
+        let tokens = tokenize_line(line);
         if tokens.is_empty() {
             continue;
         }
-        let instr = match tokens[0] {
+        // Process the instruction based on the first token.
+        match tokens[0].as_str() {
             "PutStr" => {
                 if tokens.len() != 3 {
                     return Err(format!("Line {}: PutStr expects 2 arguments", line_no + 1));
@@ -29,7 +69,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                 let register = tokens[1].parse::<usize>()
                     .map_err(|_| format!("Line {}: invalid register", line_no + 1))?;
                 let value = tokens[2].trim_matches('"').to_string();
-                Instruction::PutStr { register, value }
+                instructions.push(Instruction::PutStr { register, value });
             }
             "GetStr" => {
                 if tokens.len() != 3 {
@@ -38,7 +78,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                 let register = tokens[1].parse::<usize>()
                     .map_err(|_| format!("Line {}: invalid register", line_no + 1))?;
                 let value = tokens[2].trim_matches('"').to_string();
-                Instruction::GetStr { register, value }
+                instructions.push(Instruction::GetStr { register, value });
             }
             "PutConst" => {
                 if tokens.len() != 3 {
@@ -48,7 +88,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                     .map_err(|_| format!("Line {}: invalid register", line_no + 1))?;
                 let value = tokens[2].parse::<i32>()
                     .map_err(|_| format!("Line {}: invalid value", line_no + 1))?;
-                Instruction::PutConst { register, value }
+                instructions.push(Instruction::PutConst { register, value });
             }
             "PutVar" => {
                 if tokens.len() != 4 {
@@ -59,7 +99,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                 let var_id = tokens[2].parse::<usize>()
                     .map_err(|_| format!("Line {}: invalid var_id", line_no + 1))?;
                 let name = tokens[3].trim_matches('"').to_string();
-                Instruction::PutVar { register, var_id, name }
+                instructions.push(Instruction::PutVar { register, var_id, name });
             }
             "GetConst" => {
                 if tokens.len() != 3 {
@@ -69,7 +109,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                     .map_err(|_| format!("Line {}: invalid register", line_no + 1))?;
                 let value = tokens[2].parse::<i32>()
                     .map_err(|_| format!("Line {}: invalid value", line_no + 1))?;
-                Instruction::GetConst { register, value }
+                instructions.push(Instruction::GetConst { register, value });
             }
             "GetVar" => {
                 if tokens.len() != 4 {
@@ -80,23 +120,33 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                 let var_id = tokens[2].parse::<usize>()
                     .map_err(|_| format!("Line {}: invalid var_id", line_no + 1))?;
                 let name = tokens[3].trim_matches('"').to_string();
-                Instruction::GetVar { register, var_id, name }
+                instructions.push(Instruction::GetVar { register, var_id, name });
             }
             "Call" => {
-                if tokens.len() != 2 {
-                    return Err(format!("Line {}: Call expects 1 argument", line_no + 1));
+                // Special case: if the instruction is "Call write <string>",
+                // then generate two instructions (PutStr followed by Call).
+                if tokens[1].as_str() == "write" && tokens.len() == 3 {
+                    let value = tokens[2].trim_matches('"').to_string();
+                    instructions.push(Instruction::PutStr { register: 0, value });
+                    instructions.push(Instruction::Call { predicate: "write".to_string() });
+                } else {
+                    if tokens.len() != 2 {
+                        return Err(format!("Line {}: Call expects 1 argument", line_no + 1));
+                    }
+                    let predicate = tokens[1].to_string();
+                    instructions.push(Instruction::Call { predicate });
                 }
-                let predicate = tokens[1].to_string();
-                Instruction::Call { predicate }
             }
-            "Proceed" => Instruction::Proceed,
+            "Proceed" => {
+                instructions.push(Instruction::Proceed);
+            }
             "Choice" => {
                 if tokens.len() != 2 {
                     return Err(format!("Line {}: Choice expects 1 argument", line_no + 1));
                 }
                 let alternative = tokens[1].parse::<usize>()
                     .map_err(|_| format!("Line {}: invalid alternative", line_no + 1))?;
-                Instruction::Choice { alternative }
+                instructions.push(Instruction::Choice { alternative });
             }
             "Allocate" => {
                 if tokens.len() != 2 {
@@ -104,10 +154,14 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                 }
                 let n = tokens[1].parse::<usize>()
                     .map_err(|_| format!("Line {}: invalid size", line_no + 1))?;
-                Instruction::Allocate { n }
+                instructions.push(Instruction::Allocate { n });
             }
-            "Deallocate" => Instruction::Deallocate,
-            "Fail" => Instruction::Fail,
+            "Deallocate" => {
+                instructions.push(Instruction::Deallocate);
+            }
+            "Fail" => {
+                instructions.push(Instruction::Fail);
+            }
             "ArithmeticIs" => {
                 if tokens.len() < 3 {
                     return Err(format!("Line {}: ArithmeticIs expects at least 2 arguments", line_no + 1));
@@ -117,7 +171,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                 let expr_str = tokens[2..].join(" ");
                 let expression = parse_expression(&expr_str)
                     .map_err(|e| format!("Line {}: ArithmeticIs expression error: {}", line_no + 1, e))?;
-                Instruction::ArithmeticIs { target, expression }
+                instructions.push(Instruction::ArithmeticIs { target, expression });
             }
             "SetLocal" => {
                 if tokens.len() != 3 {
@@ -127,7 +181,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                     .map_err(|_| format!("Line {}: invalid index", line_no + 1))?;
                 let value = tokens[2].parse::<i32>()
                     .map_err(|_| format!("Line {}: invalid value", line_no + 1))?;
-                Instruction::SetLocal { index, value: Term::Const(value) }
+                instructions.push(Instruction::SetLocal { index, value: Term::Const(value) });
             }
             "GetLocal" => {
                 if tokens.len() != 3 {
@@ -137,7 +191,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                     .map_err(|_| format!("Line {}: invalid index", line_no + 1))?;
                 let register = tokens[2].parse::<usize>()
                     .map_err(|_| format!("Line {}: invalid register", line_no + 1))?;
-                Instruction::GetLocal { index, register }
+                instructions.push(Instruction::GetLocal { index, register });
             }
             "GetStructure" => {
                 if tokens.len() != 4 {
@@ -148,7 +202,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                 let functor = tokens[2].to_string();
                 let arity = tokens[3].parse::<usize>()
                     .map_err(|_| format!("Line {}: invalid arity", line_no + 1))?;
-                Instruction::GetStructure { register, functor, arity }
+                instructions.push(Instruction::GetStructure { register, functor, arity });
             }
             "IndexedCall" => {
                 if tokens.len() != 3 {
@@ -157,7 +211,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                 let predicate = tokens[1].to_string();
                 let index_register = tokens[2].parse::<usize>()
                     .map_err(|_| format!("Line {}: invalid index register", line_no + 1))?;
-                Instruction::IndexedCall { predicate, index_register }
+                instructions.push(Instruction::IndexedCall { predicate, index_register });
             }
             "MultiIndexedCall" => {
                 if tokens.len() < 3 {
@@ -165,19 +219,19 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                 }
                 let predicate = tokens[1].to_string();
                 let mut index_registers = Vec::new();
-                for token in &tokens[2..] {
+                for token in tokens.iter().skip(2) {
                     let reg = token.parse::<usize>()
                         .map_err(|_| format!("Line {}: invalid index register", line_no + 1))?;
                     index_registers.push(reg);
                 }
-                Instruction::MultiIndexedCall { predicate, index_registers }
+                instructions.push(Instruction::MultiIndexedCall { predicate, index_registers });
             }
             "TailCall" => {
                 if tokens.len() != 2 {
                     return Err(format!("Line {}: TailCall expects 1 argument", line_no + 1));
                 }
                 let predicate = tokens[1].to_string();
-                Instruction::TailCall { predicate }
+                instructions.push(Instruction::TailCall { predicate });
             }
             "AssertClause" => {
                 if tokens.len() != 3 {
@@ -186,7 +240,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                 let predicate = tokens[1].to_string();
                 let address = tokens[2].parse::<usize>()
                     .map_err(|_| format!("Line {}: invalid address", line_no + 1))?;
-                Instruction::AssertClause { predicate, address }
+                instructions.push(Instruction::AssertClause { predicate, address });
             }
             "RetractClause" => {
                 if tokens.len() != 3 {
@@ -195,9 +249,11 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                 let predicate = tokens[1].to_string();
                 let address = tokens[2].parse::<usize>()
                     .map_err(|_| format!("Line {}: invalid address", line_no + 1))?;
-                Instruction::RetractClause { predicate, address }
+                instructions.push(Instruction::RetractClause { predicate, address });
             }
-            "Cut" => Instruction::Cut,
+            "Cut" => {
+                instructions.push(Instruction::Cut);
+            }
             "BuildCompound" => {
                 if tokens.len() < 3 {
                     return Err(format!("Line {}: BuildCompound expects at least 2 arguments", line_no + 1));
@@ -206,23 +262,26 @@ pub fn parse_program(input: &str) -> Result<Vec<Instruction>, String> {
                     .map_err(|_| format!("Line {}: invalid target", line_no + 1))?;
                 let functor = tokens[2].to_string();
                 let mut arg_registers = Vec::new();
-                for token in &tokens[3..] {
+                for token in tokens.iter().skip(3) {
                     let reg = token.parse::<usize>()
                         .map_err(|_| format!("Line {}: invalid register", line_no + 1))?;
                     arg_registers.push(reg);
                 }
-                Instruction::BuildCompound { target, functor, arg_registers }
+                instructions.push(Instruction::BuildCompound { target, functor, arg_registers });
             }
-            "Halt" => Instruction::Halt,
-            other => return Err(format!("Line {}: Unknown instruction '{}'", line_no + 1, other)),
-        };
-        instructions.push(instr);
+            "Halt" => {
+                instructions.push(Instruction::Halt);
+            }
+            other => {
+                return Err(format!("Line {}: Unknown instruction '{}'", line_no + 1, other));
+            }
+        }
     }
     Ok(instructions)
 }
 
 fn main() {
-    // Initialize the logger (env_logger reads log level from RUST_LOG).
+    // Initialize the logger (env_logger reads the log level from RUST_LOG).
     env_logger::init();
     // Expect the program filename as the first command-line argument.
     let args: Vec<String> = env::args().collect();

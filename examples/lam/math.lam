@@ -1,7 +1,0 @@
-# Program 1: Arithmetic Test
-PutConst 0 3
-PutConst 1 4
-# Evaluate the expression "3 + 4" (tokens: "3", "+", "4") and store in register 2.
-ArithmeticIs 2 3 + 4
-Call print
-Halt

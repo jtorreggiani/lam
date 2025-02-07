@@ -1,9 +1,0 @@
-# This LAM program sets register 0 to 42 and then calls the built-in "print" predicate.
-# It is equivalent to the following Prolog code:
-#
-# test_program :-
-#     X = 42,
-#     print(X).
-#
-PutConst 0 42
-Call print

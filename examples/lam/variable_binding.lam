@@ -1,5 +1,0 @@
-PutVar 0 0 "X"
-# Unify the term in register 0 (a variable) with 42.
-GetConst 0 42
-Call print
-Halt

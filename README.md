@@ -67,12 +67,17 @@ To run the tests:
 cargo test
 ```
 
-## Running LAM instructions
+## Working with the LAM instruction set
 
-Run a hello world program directly in LAM with:
+You can run the LAM instructions by providing a file with the instructions. For example, to run the hello world example in `examples/lam/hello_world.lam`:
+
+```
+PutStr 0 "Hello world"
+Call write
+```
 
 ```bash
-cargo run examples/lam/hello.lam
+cargo run --bin lam examples/lam/hello_world.lam
 ```
 
 ## Running Prolog interpreter
