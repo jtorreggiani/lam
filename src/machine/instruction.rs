@@ -3,9 +3,6 @@ use crate::arithmetic::Expression;
 use crate::error_handling::MachineError;
 use crate::core::Machine;
 
-/// The `Instruction` enum represents all commands that the LAM can execute.
-/// Each variant corresponds to a specific operation in the abstract machine.
-/// This design follows the **Command Pattern** to encapsulate each instruction as an object.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Instruction {
     // Puts a constant in a register.

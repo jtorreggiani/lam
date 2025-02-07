@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use crate::term::Term;
-use crate::machine::MachineError;
+use crate::error_handling::MachineError;
 
 #[derive(Debug, Clone)]
 pub struct UnionFind {

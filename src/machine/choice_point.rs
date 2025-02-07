@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use crate::term::Term;
-use crate::machine::frame::Frame;
-use crate::union_find::UnionFind;
+use crate::frame::Frame;
+use crate::unification::UnionFind;
 
 #[derive(Debug, Clone)]
 pub struct ChoicePoint {
