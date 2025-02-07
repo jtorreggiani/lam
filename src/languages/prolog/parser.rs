@@ -1,21 +1,20 @@
-// ============================================
-// File: src/languages/prolog/parser.rs
-// ============================================
+// src/languages/prolog/parser.rs
 
-// IMPORTANT: We add an import here so that the AST types are in scope.
 use crate::languages::prolog::ast::{PrologClause, PrologGoal, PrologTerm};
 
-/// A simple recursive–descent parser for our Prolog–like language.
+/// A simple recursive–descent parser for a Prolog–like language.
 pub struct PrologParser<'a> {
     input: &'a str,
     pos: usize,
 }
 
 impl<'a> PrologParser<'a> {
+    /// Creates a new parser over the given input.
     pub fn new(input: &'a str) -> Self {
         Self { input, pos: 0 }
     }
 
+    /// Skips any whitespace.
     fn skip_whitespace(&mut self) {
         while let Some(ch) = self.current_char() {
             if ch.is_whitespace() {
@@ -26,11 +25,12 @@ impl<'a> PrologParser<'a> {
         }
     }
 
+    /// Returns the current character (if any).
     fn current_char(&self) -> Option<char> {
         self.input[self.pos..].chars().next()
     }
 
-    /// Parse an identifier: a sequence of alphanumeric characters and underscores.
+    /// Parses an identifier: a sequence of alphanumeric characters and underscores.
     pub fn parse_identifier(&mut self) -> Result<String, String> {
         self.skip_whitespace();
         let start = self.pos;
@@ -48,14 +48,14 @@ impl<'a> PrologParser<'a> {
         }
     }
 
-    /// Parse a double-quoted string.
+    /// Parses a double–quoted string.
     pub fn parse_string(&mut self) -> Result<String, String> {
-        self.pos += 1; // skip opening "
+        self.pos += 1; // Skip opening "
         let start = self.pos;
         while let Some(ch) = self.current_char() {
             if ch == '"' {
                 let s = self.input[start..self.pos].to_string();
-                self.pos += 1; // skip closing "
+                self.pos += 1; // Skip closing "
                 return Ok(s);
             }
             self.pos += ch.len_utf8();
@@ -63,22 +63,7 @@ impl<'a> PrologParser<'a> {
         Err("Unterminated string literal".to_string())
     }
 
-    /// Parse a single-quoted atom.
-    pub fn parse_quoted_atom(&mut self) -> Result<String, String> {
-        self.pos += 1; // skip opening '
-        let start = self.pos;
-        while let Some(ch) = self.current_char() {
-            if ch == '\'' {
-                let atom = self.input[start..self.pos].to_string();
-                self.pos += 1; // skip closing '
-                return Ok(atom);
-            }
-            self.pos += ch.len_utf8();
-        }
-        Err("Unterminated quoted atom".to_string())
-    }
-
-    /// Parse a numeric constant.
+    /// Parses a numeric constant.
     pub fn parse_number(&mut self) -> Result<i32, String> {
         self.skip_whitespace();
         let start = self.pos;
@@ -93,27 +78,47 @@ impl<'a> PrologParser<'a> {
         num_str.parse::<i32>().map_err(|e| e.to_string())
     }
 
-    /// Parse a Prolog term.
+    /// Parses a Prolog term.
     pub fn parse_term(&mut self) -> Result<PrologTerm, String> {
         self.skip_whitespace();
-        if let Some(ch) = self.current_char() {
+        let term = if let Some(ch) = self.current_char() {
             if ch.is_digit(10) {
-                self.parse_number().map(PrologTerm::Const)
+                self.parse_number().map(PrologTerm::Const)?
             } else if ch == '"' {
-                self.parse_string().map(PrologTerm::Str)
+                self.parse_string().map(PrologTerm::Str)?
             } else if ch == '\'' {
-                self.parse_quoted_atom().map(PrologTerm::Atom)
+                self.pos += 1; // Skip opening '
+                let start = self.pos;
+                while let Some(ch) = self.current_char() {
+                    if ch == '\'' {
+                        let atom = self.input[start..self.pos].to_string();
+                        self.pos += 1; // Skip closing '
+                        return Ok(PrologTerm::Atom(atom));
+                    }
+                    self.pos += ch.len_utf8();
+                }
+                return Err("Unterminated quoted atom".to_string());
             } else if ch.is_uppercase() {
-                self.parse_identifier().map(PrologTerm::Var)
+                self.parse_identifier().map(PrologTerm::Var)?
             } else {
-                self.parse_identifier().map(PrologTerm::Atom)
+                self.parse_identifier().map(PrologTerm::Atom)?
             }
         } else {
-            Err("Unexpected end of input while parsing term".to_string())
+            return Err("Unexpected end of input while parsing term".to_string());
+        };
+
+        self.skip_whitespace();
+        // Support a simple infix '-' operator.
+        if self.input[self.pos..].starts_with("-") {
+            self.pos += 1;
+            let right = self.parse_term()?;
+            Ok(PrologTerm::Compound("-".to_string(), vec![term, right]))
+        } else {
+            Ok(term)
         }
     }
 
-    /// Parse a comma–separated list of terms.
+    /// Parses a comma–separated list of terms.
     pub fn parse_term_list(&mut self) -> Result<Vec<PrologTerm>, String> {
         let mut terms = Vec::new();
         loop {
@@ -130,14 +135,18 @@ impl<'a> PrologParser<'a> {
         Ok(terms)
     }
 
-    /// Parse a goal: predicate followed by an optional parenthesized list of arguments.
+    /// Parses a goal: a predicate name optionally followed by a parenthesized list of arguments.
     pub fn parse_goal(&mut self) -> Result<PrologGoal, String> {
         let predicate = self.parse_identifier()?;
         self.skip_whitespace();
         let args = if self.input[self.pos..].starts_with("(") {
-            self.pos += 1; // skip '('
+            self.pos += 1; // Skip '('
             let args = self.parse_term_list()?;
-            self.consume_expected(")")?;
+            self.skip_whitespace();
+            if !self.input[self.pos..].starts_with(")") {
+                return Err("Expected ')'".to_string());
+            }
+            self.pos += 1; // Skip ')'
             args
         } else {
             Vec::new()
@@ -145,7 +154,7 @@ impl<'a> PrologParser<'a> {
         Ok(PrologGoal { predicate, args })
     }
 
-    /// Consume an expected string.
+    /// Consumes the expected string.
     pub fn consume_expected(&mut self, expected: &str) -> Result<(), String> {
         self.skip_whitespace();
         if self.input[self.pos..].starts_with(expected) {
@@ -156,17 +165,91 @@ impl<'a> PrologParser<'a> {
         }
     }
 
-    /// Parse a fact (a clause with no body). The fact must end with a period.
-    pub fn parse_fact(&mut self) -> Result<PrologClause, String> {
-        let goal = self.parse_goal()?;
-        self.consume_expected(".")?;
-        Ok(PrologClause { head: goal, body: None })
+    /// Parses a clause.
+    ///
+    /// A clause is either:
+    /// - A directive (starting with ":-"), compiled as a clause with head "directive"
+    /// - A fact or rule: a head goal optionally followed by ":-" and a body.
+    pub fn parse_clause(&mut self) -> Result<PrologClause, String> {
+        self.skip_whitespace();
+        if self.input[self.pos..].starts_with(":-") {
+            self.pos += 2; // Skip ":-"
+            let body = self.parse_goal_list()?;
+            self.consume_expected(".")?;
+            let head = PrologGoal { predicate: "directive".to_string(), args: Vec::new() };
+            Ok(PrologClause { head, body: Some(body) })
+        } else {
+            let head = self.parse_goal()?;
+            self.skip_whitespace();
+            if self.input[self.pos..].starts_with(":-") {
+                self.pos += 2; // Skip ":-"
+                let body = self.parse_goal_list()?;
+                self.consume_expected(".")?;
+                Ok(PrologClause { head, body: Some(body) })
+            } else {
+                self.consume_expected(".")?;
+                Ok(PrologClause { head, body: None })
+            }
+        }
     }
 
-    /// Parse a query. (For our initial version we assume a query is simply a goal that ends with a period.)
+    /// Parses a comma–separated list of goals.
+    pub fn parse_goal_list(&mut self) -> Result<Vec<PrologGoal>, String> {
+        let mut goals = Vec::new();
+        loop {
+            self.skip_whitespace();
+            if self.input[self.pos..].starts_with(".") {
+                break;
+            }
+            let goal = self.parse_goal()?;
+            goals.push(goal);
+            self.skip_whitespace();
+            if self.input[self.pos..].starts_with(",") {
+                self.pos += 1;
+                self.skip_whitespace();
+            } else {
+                break;
+            }
+        }
+        Ok(goals)
+    }
+
+    /// Parses an entire Prolog program.
+    pub fn parse_program(&mut self) -> Result<Vec<PrologClause>, String> {
+        let mut clauses = Vec::new();
+        while self.pos < self.input.len() {
+            self.skip_whitespace();
+            if self.pos >= self.input.len() {
+                break;
+            }
+            if self.input[self.pos..].starts_with("%") {
+                // Skip a comment line.
+                while let Some(ch) = self.current_char() {
+                    self.pos += ch.len_utf8();
+                    if ch == '\n' { break; }
+                }
+                continue;
+            }
+            let clause = self.parse_clause()?;
+            clauses.push(clause);
+        }
+        Ok(clauses)
+    }
+
+    /// Parses a fact (a clause with no body).
+    pub fn parse_fact(&mut self) -> Result<PrologClause, String> {
+        let clause = self.parse_clause()?;
+        if clause.body.is_some() {
+            Err("Expected fact, but found a rule".to_string())
+        } else {
+            Ok(clause)
+        }
+    }
+
+    /// Parses a query: a comma–separated list of goals terminated by a period.
     pub fn parse_query(&mut self) -> Result<Vec<PrologGoal>, String> {
-        let goal = self.parse_goal()?;
+        let goals = self.parse_goal_list()?;
         self.consume_expected(".")?;
-        Ok(vec![goal])
+        Ok(goals)
     }
 }

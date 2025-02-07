@@ -21,3 +21,7 @@ harness = false
 name = "lam"
 path = "src/languages/lam.rs"
 
+[[bin]]
+name = "prolog"
+path = "src/languages/prolog/interpreter.rs"
+

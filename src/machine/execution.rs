@@ -50,7 +50,11 @@ impl Machine {
         if let Some(term) = self.registers[register].clone() {
             let goal = Term::Var(var_id);
             self.unify(&goal, &term)
-                .map_err(|_| MachineError::UnificationFailed(format!("Cannot unify {:?} with {:?}", goal, term)))
+                .map_err(|_| MachineError::UnificationFailed(format!("Cannot unify {:?} with {:?}", goal, term)))?;
+            // Update the register with the resolved term.
+            let resolved = self.uf.resolve(&term);
+            self.registers[register] = Some(resolved);
+            Ok(())
         } else {
             self.registers[register] = Some(Term::Var(var_id));
             Ok(())
@@ -251,14 +255,20 @@ impl Machine {
     }
 
     pub fn execute_get_str(&mut self, register: usize, value: String) -> Result<(), MachineError> {
-        match self.registers.get(register) {
-            Some(Some(term)) => {
+        // Clone the Option<Term> so that we don't hold an immutable borrow of self.registers.
+        let term_option = self.registers.get(register).cloned()
+            .ok_or(MachineError::RegisterOutOfBounds(register))?;
+        match term_option {
+            Some(term) => {
                 let term_clone = term.clone();
                 self.unify(&term_clone, &Term::Str(value.clone()))
-                    .map_err(|_| MachineError::UnificationFailed(format!("Cannot unify {:?} with Str({})", term_clone, value)))
+                    .map_err(|_| MachineError::UnificationFailed(format!("Cannot unify {:?} with Str({})", term_clone, value)))?;
+                // Resolve the term now that the immutable borrow is released.
+                let resolved = self.uf.resolve(&term);
+                self.registers[register] = Some(resolved);
+                Ok(())
             },
-            Some(None) => Err(MachineError::UninitializedRegister(register)),
-            None => Err(MachineError::RegisterOutOfBounds(register)),
+            None => Err(MachineError::UninitializedRegister(register)),
         }
     }
 

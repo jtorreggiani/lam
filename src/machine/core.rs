@@ -11,9 +11,6 @@ use crate::machine::instruction::Instruction;
 use crate::machine::term::Term;
 use crate::machine::unification::UnionFind;
 
-// Re-export the execution methods.
-// pub use crate::machine::execution::*;
-
 ///
 /// The built–in predicate function type.
 ///
@@ -168,7 +165,14 @@ impl Machine {
                 debug!("Halt: Stopping execution");
                 break;
             }
-            self.step()?;
+            match self.step() {
+                Ok(()) => {},
+                // If a unification failure occurs, try to backtrack.
+                Err(MachineError::UnificationFailed(_)) => {
+                    self.execute_fail()?;
+                },
+                Err(e) => return Err(e),
+            }
         }
         Ok(())
     }
@@ -210,9 +214,20 @@ impl Machine {
     }
 
     /// Built–in predicate: writes a term from register 0.
+    /// **Changed:** If the term is a compound with functor "-" and two arguments,
+    /// print it in the format "arg0-arg1".
     pub fn builtin_write(&mut self) -> Result<(), MachineError> {
         if let Some(Some(term)) = self.registers.get(0) {
-            print!("{}", term);
+            // Resolve the term to see if it has been bound to another term.
+            let resolved = self.uf.resolve(term);
+            match resolved {
+                Term::Compound(ref functor, ref args) if functor == "-" && args.len() == 2 => {
+                    print!("{}-{}", args[0], args[1]);
+                },
+                _ => {
+                    print!("{}", resolved);
+                }
+            }
             use std::io::{self, Write};
             io::stdout().flush().unwrap();
         }

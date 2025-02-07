@@ -8,6 +8,7 @@
 //! - machine: Contains the core machine implementation and supporting components.
 
 pub mod machine;
+pub mod languages;
 
 pub use machine::core;
 pub use machine::term;
@@ -15,5 +16,4 @@ pub use machine::error_handling;
 pub use machine::arithmetic;
 pub use machine::instruction;
 
-pub mod languages;
 pub use languages::prolog;
