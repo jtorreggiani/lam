@@ -201,15 +201,12 @@ fn test_parse_program_with_comments() {
 fn test_family_tree_output() {
     // Run the prolog binary with the sample program.
     let output = Command::new("cargo")
-        .args(&["run", "--bin", "prolog", "examples/prolog/family_tree.pl"])
+        .args(&["run", "--bin", "prolog", "examples/prolog/family.pl"])
         .output()
         .expect("Failed to execute prolog binary");
 
     // Convert stdout from bytes to a String.
     let stdout = String::from_utf8_lossy(&output.stdout);
-
-    // For debugging purposes you can print the output:
-    // println!("Output:\n{}", stdout);
 
     // Check that the expected solution lines appear.
     // (Depending on your implementation, extra debug or logging lines may be printed.

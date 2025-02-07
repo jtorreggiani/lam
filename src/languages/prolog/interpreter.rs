@@ -1,5 +1,10 @@
 // src/languages/prolog/interpreter.rs
 
+//! Prolog interpreter for the LAM system.
+//!
+//! This module parses a Prolog program, compiles it into LAM instructions,
+//! and then creates and runs the machine.
+
 use std::env;
 use std::fs;
 use std::collections::HashMap;
@@ -216,10 +221,12 @@ fn compile_clause(clause: &PrologClause, reg_offset: usize) -> Vec<Instruction> 
     // Compile the head.
     let head_insts = compile_head(&clause.head, reg_offset, &mut var_map);
     instructions.extend(head_insts);
-    // Compile the body (if any) using the same register base for all goals.
+    // Compile the body (if any) using a register offset that does not conflict with the head.
     if let Some(body) = &clause.body {
+        // Use body_offset to avoid collision with head registers.
+        let body_offset = reg_offset + clause.head.args.len();
         for goal in body {
-            let insts = compile_goal(goal, reg_offset, &mut var_map);
+            let insts = compile_goal(goal, body_offset, &mut var_map);
             instructions.extend(insts);
         }
     }
@@ -263,7 +270,8 @@ fn main() {
         return;
     }
     let filename = &args[1];
-    let program_str = fs::read_to_string(filename).expect("Failed to read file");
+    let program_str = fs::read_to_string(filename)
+        .expect(&format!("Failed to read file: {}", filename));
 
     // Parse the Prolog program.
     let mut parser = PrologParser::new(&program_str);
