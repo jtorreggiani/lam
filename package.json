@@ -2,7 +2,7 @@
   "scripts": {
     "badge": "node bin/generate-badge.js"
   },
-  "devDependencies": {
+  "dependencies": {
     "badge-maker": "^4.1.0",
     "lcov-parse": "^1.0.0"
   }
