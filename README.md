@@ -131,28 +131,6 @@ cargo build --release
 
 ---
 
-## Usage
-
-### Running LAM Programs
-
-LAM programs are written in a domain–specific language that compiles down to LAM instructions. To run a LAM program:
-
-```bash
-cargo run --bin lam <path/to/program.lam>
-```
-
-### Interactive Debugging & Logging
-
-LAM includes built–in logging capabilities via the `env_logger` crate. To enable verbose logging:
-
-```bash
-RUST_LOG=debug cargo run --bin lam <path/to/program.lam>
-```
-
-This outputs detailed execution traces including register states, substitution mappings, and choice point information—ideal for debugging complex logic programs.
-
----
-
 ## Project Structure
 
 ```plaintext
