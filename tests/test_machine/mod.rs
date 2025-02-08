@@ -19,3 +19,4 @@ pub mod test_term;
 pub mod test_unification_performance;
 pub mod test_unification;
 pub mod test_dynamic_clause_indexing;
+pub mod test_properties;

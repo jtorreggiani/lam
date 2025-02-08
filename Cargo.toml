@@ -12,6 +12,7 @@ pest_derive = "2.7.15"
 
 [dev-dependencies]
 criterion = "0.4"
+quickcheck = "1.0"
 
 [[bench]]
 name = "machine_bench"
