@@ -1,97 +1,179 @@
-# Logic Abstract Machine
+# Logic Abstract Machine (LAM)
+Version 0.2
 
-The Logic Abstract Machine (LAM) is a stack-based, abstract machine designed to evaluate logical expressions. It is inspired by the Warren Abstract Machine (WAM) used in Prolog implementations, but it is not intended specifically for Prolog.
+The Logic Abstract Machine (LAM) is a stack-based abstract machine for logic programming. Inspired by the Warren Abstract Machine (WAM) for Prolog, LAM has evolved into a robust and extensible core that supports several logic programming paradigms including unification with backtracking, arithmetic evaluation, lambda calculus, and a simple Prolog interpreter.
 
-🚧 LAM is under active development and should be considered a work in progress.
+## Overview
 
-## Introduction
+LAM provides:
 
-The aim for LAM is to provide a robust core for implementing logic programming languages that is optimized for higher order logics, probabilistic logic, other advanced logic programming paradigms. The LAM is designed to be an efficient and flexible abstract machine that can be easily extended and adapted to different programming languages and paradigms.
+### Unification and Backtracking
+Uses a union–find data structure with trailing and path compression for efficient unification. The machine supports backtracking via choice points and a comprehensive trail mechanism.
 
-## Design
+### Arithmetic Evaluation
+An arithmetic parser and evaluator support standard operators (+, -, *, /) with correct precedence and parentheses.
 
-LAM has been built in Rust based on the principles presented in the book [Warren's Abstract Machine: A Tutorial Reconstruction](https://direct.mit.edu/books/monograph/4253/Warren-s-Abstract-MachineA-Tutorial-Reconstruction) by Hassan Ait-Kaci. It currently has basic support for unification, backtracking, and arithmetic evaluation.
+### Lambda Calculus Support
+Lambda abstraction, beta reduction, and capture–avoiding substitution are implemented to support higher–order reasoning.
 
-## File Structure
+### Prolog Interpreter
+A basic Prolog interpreter supports facts, rules, queries, and even dynamic clause management (assert/retract) with indexing for faster lookup.
+
+### Dynamic Clause Management
+Clauses can be asserted and retracted at runtime. Indexing is available to speed up clause lookup.
+
+### Extensive Testing and Coverage
+A comprehensive test suite covers arithmetic, unification, backtracking, lambda calculus, and more. Test coverage is measured using tools such as cargo-tarpaulin.
+
+### Detailed Formal Specification
+The SPECIFICATION.md file documents the abstract machine's state, instruction semantics, invariants, and design assumptions.
+
+## Project Structure
 
 ```
 .
-├── Cargo.lock
 ├── Cargo.toml
+├── Cargo.lock
 ├── README.md
-├── benches
-│   └── machine_bench.rs
-├── bin
-│   └── collect_source
-├── docs
-│   └── source.rs
-├── examples
-│   ├── instructions
-│   └── prolog
+├── SPECIFICATION.md
 ├── src
-│   ├── languages
-│   │   ├── lam.rs
-│   │   └── prolog.rs
-│   ├── lib.rs
-│   ├── machine
-│   │   ├── arithmetic.rs
-│   │   ├── choice_point.rs
-│   │   ├── core.rs
-│   │   ├── error_handling.rs
-│   │   ├── execution.rs
-│   │   ├── frame.rs
-│   │   ├── instruction.rs
-│   │   ├── lambda.rs
-│   │   ├── mod.rs
-│   │   ├── term.rs
-│   │   └── unification.rs
-│   └── main.rs
+│   ├── main.rs
+│   ├── lib.rs
+│   ├── machine
+│   │   ├── arithmetic.rs
+│   │   ├── choice_point.rs
+│   │   ├── core.rs
+│   │   ├── error_handling.rs
+│   │   ├── execution.rs
+│   │   ├── frame.rs
+│   │   ├── instruction.rs
+│   │   ├── lambda.rs
+│   │   ├── mod.rs
+│   │   ├── term.rs
+│   │   └── unification.rs
+│   └── languages
+│       ├── lam.rs
+│       └── prolog
+│           ├── ast.rs
+│           ├── interpreter.rs
+│           └── parser.rs
 └── tests
-    ├── test_languages
     ├── test_machine
-    └── test_main.rs
+    │   ├── test_arithmetic.rs
+    │   ├── test_backtracking_constants.rs
+    │   ├── test_backtracking_variables.rs
+    │   ├── test_benchmark.rs
+    │   ├── test_build_compound.rs
+    │   ├── test_cut.rs
+    │   ├── test_dynamic_clause_management.rs
+    │   ├── test_environment.rs
+    │   ├── test_error_conditions.rs
+    │   ├── test_get_structure.rs
+    │   ├── test_higher_order.rs
+    │   ├── test_indexed_call.rs
+    │   ├── test_lambda.rs
+    │   ├── test_machine.rs
+    │   ├── test_path_inference.rs
+    │   ├── test_ping.rs
+    │   ├── test_tail_call.rs
+    │   ├── test_term.rs
+    │   ├── test_unification.rs
+    │   ├── test_unification_performance.rs
+    │   ├── test_dynamic_clause_indexing.rs
+    │   └── test_properties.rs
+    └── test_languages
 ```
 
-## Usage
+## Building and Running
 
-To build LAM you need Rust and Cargo installed. You can build the project by running:
+### Building the Project
+
+Ensure that you have Rust and Cargo installed. Then run:
 
 ```bash
-cd lam
 cargo build
 ```
 
-To run the tests:
+For an optimized production build, run:
+
+```bash
+cargo build --release
+```
+
+### Running Tests
+
+Run the full test suite with:
 
 ```bash
 cargo test
 ```
 
-## Working with the LAM instruction set
-
-You can run the LAM instructions by providing a file with the instructions. For example, to run the hello world example in `examples/lam/hello_world.lam`:
-
-```
-PutStr 0 "Hello world"
-Call write
-```
+To generate a test coverage report using cargo-tarpaulin:
 
 ```bash
-cargo run --bin lam examples/lam/hello_world.lam
+cargo tarpaulin --out Html
 ```
 
-## Running a Prolog interpreter
+Then open the generated HTML report to view detailed coverage information.
 
-Since the LAM was derived from the WAM, prolog is the easiest language to implement. To run the test prolog REPL:
+## Running the LAM Interpreter
+
+LAM Programs can be run by supplying a file with LAM instructions:
 
 ```bash
-cargo run --bin prolog
+cargo run --bin lam <program.lam>
 ```
 
-You can also run a prolog file by providing the path to the file:
+## Current Capabilities
 
-```bash
-cargo run --bin prolog examples/prolog/hello_world.pl
-```
+### Unification & Backtracking
+Efficient unification with a union–find structure supporting path compression and backtracking via choice points and a trail.
 
-Please note the prolog implementation is still in early stages of development and may not work as expected.
+### Arithmetic Evaluation
+Parsing and evaluation of arithmetic expressions with proper operator precedence.
+
+### Lambda Calculus
+Support for lambda abstractions, beta reduction, and capture–avoiding substitution.
+
+### Prolog Parsing & Execution
+A recursive–descent parser for Prolog with support for facts, rules, and queries. Dynamic clause management (assert/retract) is included.
+
+### Dynamic Clause Management & Indexing
+Runtime assertion and retraction of clauses with clause indexing for efficient lookup.
+
+### Robust Testing
+A comprehensive test suite (with unit and integration tests) verifies correctness, and test coverage is measured to ensure reliability.
+
+## Formal Specification
+
+For a complete formal specification of the LAM abstract machine (including state, instruction semantics, invariants, and design decisions), please refer to the SPECIFICATION.md file.
+
+## Future Improvements
+
+The roadmap for LAM includes several areas for further development:
+
+### Reduce Cloning Overhead
+Refactor parts of the code (especially in union–find and state management) to use borrowing or smart pointers (e.g. Rc, RefCell) and potentially persistent data structures to reduce cloning and allocation overhead.
+
+### Structured Logging & Introspection
+Enhance logging by integrating a structured logging framework (such as tracing or slog). This will allow machine state (registers, substitution, choice points) to be output in a structured format (e.g. JSON) for easier debugging and interactive analysis.
+
+### Parser Refactoring
+Consider using a combinator library (like nom) to refactor the recursive–descent parser for both LAM and Prolog. This may improve error reporting and code reuse.
+
+### Interactive Debugger
+Develop an interactive debugger (or REPL) that allows step–by–step execution of LAM programs, with detailed inspection of registers, control and environment stacks, union–find trail, etc.
+
+### Performance Optimization
+Benchmark and profile the machine using more sophisticated tools (e.g. Criterion) to guide optimizations in unification, backtracking, and instruction dispatch.
+
+### Language Extensions
+Expand support for additional logic programming features (such as probabilistic logic, constraint logic programming, or higher–order logic) and further enrich the Prolog interpreter.
+
+## Contributing
+
+Contributions are very welcome! If you wish to contribute:
+
+* Please open an issue or submit a pull request
+* Ensure your changes include appropriate tests to maintain high test coverage
+* Follow the existing code style and document any new features or modifications
