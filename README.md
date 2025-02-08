@@ -118,10 +118,12 @@ LAM’s unification engine is built upon a union–find structure enhanced with:
 Clone the repository and build the project:
 
 ```bash
-git clone https://github.com/yourusername/lam.git
+git clone https://github.com/jtorreggiani/lam.git
 cd lam
 cargo build
 ```
+
+Please fork the repository if you plan to contribute.
 
 For an optimized release build:
 
