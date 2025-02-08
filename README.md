@@ -146,29 +146,35 @@ Please note the LAM instruction parser is still in development and may not be ab
 ## Project Structure
 
 ```plaintext
-lam/
-├── Cargo.toml
+.
 ├── Cargo.lock
+├── Cargo.toml
+├── LICENSE
 ├── README.md
 ├── SPECIFICATION.md
+├── benches
+├── bin
+├── docs
+├── examples
+│   └── hello_world.lam
+├── package.json
 ├── src
-│   ├── main.rs                # Entry point for LAM
-│   ├── lib.rs                 # Library entry point; re-exports modules
-│   ├── machine                # Core LAM implementation
-│   │   ├── arithmetic.rs      # Arithmetic expression parsing & evaluation
-│   │   ├── choice_point.rs    # Choice point structure for backtracking
-│   │   ├── core.rs            # Core machine implementation
-│   │   ├── error_handling.rs  # MachineError definitions and error handling
-│   │   ├── execution.rs       # Instruction execution implementations
-│   │   ├── frame.rs           # Control stack frame definitions
-│   │   ├── instruction.rs     # LAM instruction set definitions
-│   │   ├── lambda.rs          # Lambda calculus support (substitution, beta reduction)
-│   │   ├── mod.rs             # Module re-exports for machine
-│   │   ├── term.rs            # Term definitions (constants, variables, compounds, etc.)
-│   │   └── unification.rs     # Union–find based unification engine
-│   └── languages
-│       └── lam.rs             # LAM language parser & interpreter front–end
-└── tests                      # Comprehensive test suite for LAM and language front–ends
+│   ├── lib.rs
+│   ├── machine
+│   │   ├── arithmetic.rs
+│   │   ├── choice_point.rs
+│   │   ├── core.rs
+│   │   ├── error_handling.rs
+│   │   ├── execution.rs
+│   │   ├── frame.rs
+│   │   ├── instruction.rs
+│   │   ├── instruction_parser.rs
+│   │   ├── lambda.rs
+│   │   ├── mod.rs
+│   │   ├── term.rs
+│   │   └── unification.rs
+│   └── main.rs
+└── tests
 ```
 
 ---
