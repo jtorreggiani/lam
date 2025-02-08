@@ -2,3 +2,4 @@
 .env
 docs/source.rs
 node_modules
+lcov.info
