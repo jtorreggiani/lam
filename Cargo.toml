@@ -2,6 +2,7 @@
 name = "lam"
 version = "0.1.0"
 edition = "2021"
+exclude = ["tests/*", "Cargo.lock", "README.md", "SPECIFICATION.md"]
 
 [dependencies]
 log = "0.4"

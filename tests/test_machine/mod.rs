@@ -1,7 +1,6 @@
 pub mod test_arithmetic;
 pub mod test_backtracking_constants;
 pub mod test_backtracking_variables;
-pub mod test_benchmark;
 pub mod test_build_compound;
 pub mod test_cut;
 pub mod test_dynamic_clause_management;
