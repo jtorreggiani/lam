@@ -28,4 +28,11 @@ find tests -type f -name '*.rs' | sort | while read -r file; do
     add_file "$file"
 done
 
+# Add prolog files
+echo "" >> docs/source.rs
+echo "// === Prolog Files ===" >> docs/source.rs
+find examples -type f -name '*.pl' | sort | while read -r file; do
+    add_file "$file"
+done
+
 echo "Combined Rust source code (including tests) has been written to docs/source.rs"

@@ -51,7 +51,6 @@ impl Machine {
             let goal = Term::Var(var_id);
             self.unify(&goal, &term)
                 .map_err(|_| MachineError::UnificationFailed(format!("Cannot unify {:?} with {:?}", goal, term)))?;
-            // Update the register with the resolved term.
             let resolved = self.uf.resolve(&term);
             self.registers[register] = Some(resolved);
             Ok(())
@@ -78,7 +77,8 @@ impl Machine {
                 saved_substitution: self.substitution.clone(),
                 saved_control_stack: self.control_stack.clone(),
                 alternative_clauses,
-                saved_uf: self.uf.clone(),
+                uf_trail_len: self.uf.trail.len(),
+                call_level: self.control_stack.len(),
             };
             self.choice_stack.push(Box::new(cp));
             self.pc = jump_to;
@@ -102,7 +102,8 @@ impl Machine {
             saved_substitution: self.substitution.clone(),
             saved_control_stack: self.control_stack.clone(),
             alternative_clauses: Some(vec![alternative]),
-            saved_uf: self.uf.clone(),
+            uf_trail_len: self.uf.trail.len(),
+            call_level: self.control_stack.len(),
         };
         self.choice_stack.push(Box::new(cp));
         Ok(())
@@ -170,7 +171,8 @@ impl Machine {
             self.registers = cp.saved_registers;
             self.substitution = cp.saved_substitution;
             self.control_stack = cp.saved_control_stack;
-            self.uf = cp.saved_uf;
+            // Roll back union–find bindings to the saved trail length.
+            self.uf.undo_trail(cp.uf_trail_len);
             if let Some(mut alternatives) = cp.alternative_clauses {
                 if let Some(next_addr) = alternatives.pop() {
                     if !alternatives.is_empty() {
@@ -180,7 +182,8 @@ impl Machine {
                             saved_substitution: self.substitution.clone(),
                             saved_control_stack: self.control_stack.clone(),
                             alternative_clauses: Some(alternatives),
-                            saved_uf: self.uf.clone(),
+                            uf_trail_len: self.uf.trail.len(),
+                            call_level: cp.call_level,
                         };
                         self.choice_stack.push(Box::new(new_cp));
                     }
@@ -229,7 +232,8 @@ impl Machine {
                         saved_substitution: self.substitution.clone(),
                         saved_control_stack: self.control_stack.clone(),
                         alternative_clauses,
-                        saved_uf: self.uf.clone(),
+                        uf_trail_len: self.uf.trail.len(),
+                        call_level: self.control_stack.len(),
                     };
                     self.choice_stack.push(Box::new(cp));
                     self.pc = jump_to;
@@ -255,7 +259,6 @@ impl Machine {
     }
 
     pub fn execute_get_str(&mut self, register: usize, value: String) -> Result<(), MachineError> {
-        // Clone the Option<Term> so that we don't hold an immutable borrow of self.registers.
         let term_option = self.registers.get(register).cloned()
             .ok_or(MachineError::RegisterOutOfBounds(register))?;
         match term_option {
@@ -263,7 +266,6 @@ impl Machine {
                 let term_clone = term.clone();
                 self.unify(&term_clone, &Term::Str(value.clone()))
                     .map_err(|_| MachineError::UnificationFailed(format!("Cannot unify {:?} with Str({})", term_clone, value)))?;
-                // Resolve the term now that the immutable borrow is released.
                 let resolved = self.uf.resolve(&term);
                 self.registers[register] = Some(resolved);
                 Ok(())
@@ -293,7 +295,8 @@ impl Machine {
                         saved_substitution: self.substitution.clone(),
                         saved_control_stack: self.control_stack.clone(),
                         alternative_clauses,
-                        saved_uf: self.uf.clone(),
+                        uf_trail_len: self.uf.trail.len(),
+                        call_level: self.control_stack.len(),
                     };
                     self.choice_stack.push(Box::new(cp));
                     self.pc = jump_to;
@@ -324,7 +327,8 @@ impl Machine {
                     saved_substitution: self.substitution.clone(),
                     saved_control_stack: self.control_stack.clone(),
                     alternative_clauses,
-                    saved_uf: self.uf.clone(),
+                    uf_trail_len: self.uf.trail.len(),
+                    call_level: self.control_stack.len(),
                 };
                 self.choice_stack.push(Box::new(cp));
                 self.pc = jump_to;
@@ -357,7 +361,8 @@ impl Machine {
     }
 
     pub fn execute_cut(&mut self) -> Result<(), MachineError> {
-        self.choice_stack.clear();
+        let current_call_level = self.control_stack.len();
+        self.choice_stack.retain(|cp| cp.call_level < current_call_level);
         Ok(())
     }
 

@@ -1,10 +1,12 @@
-use lam::arithmetic::{Expression, evaluate};
-use lam::instruction::{Instruction};
-use lam::core::Machine;
+// tests/test_machine/test_arithmetic.rs
+
+use lam::machine::arithmetic::{Expression, evaluate, parse_expression};
+use lam::machine::instruction::Instruction;
+use lam::machine::core::Machine;
 use lam::term::Term;
 
 #[test]
-fn test_arithmetic_is() {
+fn test_arithmetic_is_simple() {
     let code = vec![
         Instruction::ArithmeticIs { 
             target: 0, 
@@ -27,7 +29,6 @@ fn test_arithmetic_is() {
 #[test]
 fn test_evaluate_const() {
     let expr = Expression::Const(42);
-    // Pass an empty slice because the expression does not contain any variables.
     assert_eq!(evaluate(&expr, &[]).unwrap(), 42);
 }
 
@@ -37,13 +38,12 @@ fn test_evaluate_add() {
         Box::new(Expression::Const(3)), 
         Box::new(Expression::Const(4))
     );
-    // No variables here, so we pass an empty slice.
     assert_eq!(evaluate(&expr, &[]).unwrap(), 7);
 }
 
 #[test]
 fn test_evaluate_complex() {
-    // (10 - 2) * (1 + 3) = 8 * 4 = 32.
+    // (10 - 2) * (1 + 3) = 32.
     let expr = Expression::Mul(
         Box::new(Expression::Sub(
             Box::new(Expression::Const(10)), 
@@ -54,7 +54,29 @@ fn test_evaluate_complex() {
             Box::new(Expression::Const(3))
         ))
     );
-    // Pass an empty slice since the expression has no variable references.
     assert_eq!(evaluate(&expr, &[]).unwrap(), 32);
 }
 
+#[test]
+fn test_parse_simple_expression() {
+    let input = "3 + 4 * 2";
+    let expr = parse_expression(input).expect("Failed to parse expression");
+    // 4 * 2 is evaluated first, so the expression is equivalent to 3 + (4 * 2) = 11.
+    assert_eq!(evaluate(&expr, &[]).unwrap(), 11);
+}
+
+#[test]
+fn test_parse_expression_with_parentheses() {
+    let input = "(3 + 4) * 2";
+    let expr = parse_expression(input).expect("Failed to parse expression with parentheses");
+    // Parentheses force addition first: (3 + 4) * 2 = 14.
+    assert_eq!(evaluate(&expr, &[]).unwrap(), 14);
+}
+
+#[test]
+fn test_parse_unary_minus() {
+    let input = "-3 + 5";
+    let expr = parse_expression(input).expect("Failed to parse unary minus expression");
+    // -3 + 5 = 2.
+    assert_eq!(evaluate(&expr, &[]).unwrap(), 2);
+}

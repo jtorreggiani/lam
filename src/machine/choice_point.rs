@@ -6,7 +6,6 @@
 use std::collections::HashMap;
 use crate::term::Term;
 use crate::machine::frame::Frame;
-use crate::machine::unification::UnionFind;
 
 /// A saved machine state used for backtracking.
 #[derive(Debug, Clone)]
@@ -21,6 +20,8 @@ pub struct ChoicePoint {
     pub saved_control_stack: Vec<Frame>,
     /// Alternative clause addresses for backtracking.
     pub alternative_clauses: Option<Vec<usize>>,
-    /// Saved union–find structure for variable bindings.
-    pub saved_uf: UnionFind,
+    /// The union–find trail length at the time of choice point creation.
+    pub uf_trail_len: usize,
+    /// The call level (e.g. the length of the control stack) when this choice point was created.
+    pub call_level: usize,
 }

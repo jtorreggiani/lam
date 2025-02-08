@@ -1,13 +1,22 @@
 // src/machine/unification.rs
-//! Union–find based unification for LAM.
+//! Union–find based unification for LAM with trailing for efficient backtracking.
 
 use std::collections::HashMap;
 use crate::machine::term::Term;
 use crate::machine::error_handling::MachineError;
 
+/// Represents a trail entry recording a variable’s old binding.
+#[derive(Debug, Clone)]
+pub struct TrailEntry {
+    pub var: usize,
+    pub old_binding: Option<Term>,
+}
+
+/// Union–find structure with a trailing mechanism.
 #[derive(Debug, Clone)]
 pub struct UnionFind {
-    bindings: HashMap<usize, Term>,
+    pub bindings: HashMap<usize, Term>,
+    pub trail: Vec<TrailEntry>,
 }
 
 impl UnionFind {
@@ -15,6 +24,7 @@ impl UnionFind {
     pub fn new() -> Self {
         Self {
             bindings: HashMap::new(),
+            trail: Vec::new(),
         }
     }
 
@@ -32,15 +42,32 @@ impl UnionFind {
         }
     }
 
-    /// Binds the variable `var` to `term` (after resolution).
+    /// Binds the variable `var` to `term` (after resolution), recording the old binding on the trail.
     pub fn bind(&mut self, var: usize, term: &Term) -> Result<(), MachineError> {
         let resolved_term = self.resolve(term);
+        // Avoid binding a variable to itself.
         if let Term::Var(v) = &resolved_term {
             if *v == var {
                 return Ok(());
             }
         }
+        // Record the current binding (if any) on the trail.
+        let old_binding = self.bindings.get(&var).cloned();
+        self.trail.push(TrailEntry { var, old_binding });
         self.bindings.insert(var, resolved_term);
         Ok(())
+    }
+
+    /// Rolls back the trail so that its length becomes `target_len`.
+    pub fn undo_trail(&mut self, target_len: usize) {
+        while self.trail.len() > target_len {
+            if let Some(entry) = self.trail.pop() {
+                if let Some(old) = entry.old_binding {
+                    self.bindings.insert(entry.var, old);
+                } else {
+                    self.bindings.remove(&entry.var);
+                }
+            }
+        }
     }
 }

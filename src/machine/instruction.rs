@@ -31,6 +31,8 @@ pub enum Instruction {
     BuildCompound { target: usize, functor: String, arg_registers: Vec<usize> },
     PutStr { register: usize, value: String },
     GetStr { register: usize, value: String },
+    /// New: Move instruction copies the content from register `src` into register `dst`.
+    Move { src: usize, dst: usize },
     Halt,
 }
 
@@ -61,6 +63,7 @@ impl Instruction {
             Instruction::BuildCompound { target, functor, arg_registers } => machine.execute_build_compound(*target, functor.clone(), arg_registers.clone()),
             Instruction::PutStr { register, value } => machine.execute_put_str(*register, value.clone()),
             Instruction::GetStr { register, value } => machine.execute_get_str(*register, value.clone()),
+            Instruction::Move { src, dst } => machine.execute_move(*src, *dst),
             Instruction::Halt => Ok(()),
         }
     }

@@ -70,6 +70,7 @@ impl Machine {
         machine.builtins.insert("print_subst".to_string(), Machine::builtin_print_subst);
         machine.builtins.insert("write".to_string(), Machine::builtin_write);
         machine.builtins.insert("nl".to_string(), Machine::builtin_nl);
+        machine.builtins.insert("halt".to_string(), Machine::builtin_halt);
         machine
     }
 
@@ -91,6 +92,19 @@ impl Machine {
                 }
             }
         }
+    }
+
+    // Executes a move: copies the term from register src into register dst.
+    pub fn execute_move(&mut self, src: usize, dst: usize) -> Result<(), MachineError> {
+        if src >= self.registers.len() {
+            return Err(MachineError::RegisterOutOfBounds(src));
+        }
+        if dst >= self.registers.len() {
+            return Err(MachineError::RegisterOutOfBounds(dst));
+        }
+        let term = self.registers[src].clone();
+        self.registers[dst] = term;
+        Ok(())
     }
 
     /// Registers an indexed clause.
@@ -180,6 +194,14 @@ impl Machine {
                 Err(e) => return Err(e),
             }
         }
+        Ok(())
+    }
+
+    /// Built-in predicate: halt.
+    /// When called, it stops execution by setting the program counter
+    /// to the end of the code.
+    pub fn builtin_halt(&mut self) -> Result<(), MachineError> {
+        self.pc = self.code.len();
         Ok(())
     }
 
