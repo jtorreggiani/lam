@@ -8,6 +8,7 @@ pub mod test_dynamic_clause_indexing;
 pub mod test_dynamic_clause_management;
 pub mod test_environment;
 pub mod test_error_conditions;
+pub mod test_execution;
 pub mod test_get_structure;
 pub mod test_higher_order;
 pub mod test_indexed_call;

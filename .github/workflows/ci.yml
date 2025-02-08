@@ -37,30 +37,30 @@ jobs:
         run: cargo test --verbose
 
       # 5. Install cargo-tarpaulin.
-      - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin
+      # - name: Install cargo-tarpaulin
+      #   run: cargo install cargo-tarpaulin
 
       # 6. Run Tarpaulin to generate an LCOV coverage report.
-      - name: Run coverage analysis with Tarpaulin
-        run: cargo tarpaulin --out Lcov --verbose
+      # - name: Run coverage analysis with Tarpaulin
+      #   run: cargo tarpaulin --out Lcov --verbose
 
       # 7. Setup Node.js so we can run our badge-generation script.
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '16'
+      # - name: Setup Node.js
+      #   uses: actions/setup-node@v3
+      #   with:
+      #     node-version: '16'
 
       # 8. Install dependencies for badge generation.
-      - name: Install badge generation dependencies
-        run: npm install lcov-parse badge-maker
+      # - name: Install badge generation dependencies
+      #   run: npm install lcov-parse badge-maker
 
       # 9. Generate the Coverage Badge by running the script in your repository.
-      - name: Generate Coverage Badge
-        run: node scripts/generate-badge.js
+      # - name: Generate Coverage Badge
+      #   run: node scripts/generate-badge.js
 
       # 10. Upload the generated badge as an artifact using actions/upload-artifact v4.
-      - name: Upload Coverage Badge Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-badge
-          path: coverage.svg
+      # - name: Upload Coverage Badge Artifact
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: coverage-badge
+      #     path: coverage.svg
