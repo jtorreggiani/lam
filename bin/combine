@@ -42,3 +42,5 @@ find . -type f -name '*.md' | sort | while read -r file; do
 done
 
 echo "Combined Rust source code (including tests) has been written to docs/source.rs"
+
+echo "docs/source.rs"
