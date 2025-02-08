@@ -1,10 +1,8 @@
-use quickcheck::quickcheck;
-use lam::machine::term::Term;
-use lam::machine::unification::UnionFind;
-use lam::machine::error_handling::MachineError;
-
 #[cfg(test)]
 mod tests {
+    use quickcheck::quickcheck;
+    use lam::machine::term::Term;
+    use lam::machine::unification::UnionFind;
     // Property: After binding a variable to a constant and then undoing the binding,
     // the variable should be unbound.
     quickcheck! {
