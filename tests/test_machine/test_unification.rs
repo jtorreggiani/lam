@@ -1,9 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use lam::machine::unification::{UnionFind, TrailEntry};
+    use lam::machine::unification::{UnionFind};
     use lam::machine::term::Term;
-    use lam::machine::error_handling::MachineError;
 
     #[test]
     fn test_new_union_find() {

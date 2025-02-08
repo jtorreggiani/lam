@@ -4,7 +4,6 @@
 mod tests {
     use lam::machine::core::Machine;
     use lam::machine::term::Term;
-    use lam::machine::instruction::Instruction;
 
     #[test]
     fn test_builtin_print() {

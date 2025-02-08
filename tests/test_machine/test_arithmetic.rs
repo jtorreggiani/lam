@@ -2,7 +2,6 @@
 mod tests {
     use lam::machine::arithmetic::{Expression, evaluate, parse_expression};
     use lam::machine::error_handling::MachineError;
-    use lam::machine::term::Term;
 
     // In these tests, our arithmetic expressions only use constants
     // so we can pass an empty vector (or a vector of Nones) as registers.
