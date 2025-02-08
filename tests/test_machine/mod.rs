@@ -14,7 +14,7 @@ pub mod test_get_structure;
 pub mod test_higher_order;
 pub mod test_index_table;
 pub mod test_indexed_call;
-pub mod test_instruction_execution;
+pub mod test_instruction;
 pub mod test_lambda;
 pub mod test_machine;
 pub mod test_path_inference;
