@@ -209,12 +209,12 @@ Then open the generated HTML report in your browser.
 
 ### Short-Term Goals
 
-- **Reduce Cloning Overhead:**  
-  Optimize memory management using borrowing (e.g. `Rc`, `RefCell`) to reduce unnecessary cloning.
-- **Enhanced Logging & Debugging:**  
-  Integrate structured logging and develop an interactive debugger/REPL for real–time inspection.
-- **Parser Refactoring:**  
-  Migrate to a combinator-based parsing library (such as [nom](https://github.com/Geal/nom)) for improved error reporting.
+- **Implement a basic prolog inperpter:**
+  Develop a Prolog interpreter using LAM as the core engine.
+- **Benchmark & Profiling:**
+  Profile the LAM prolog implementation and compare to existing prolog interpreters to identify bottlenecks.
+- **Release a stable version:**
+  Release a stable version of LAM with a basic prolog interpreter.
 
 ### Long-Term Vision
 

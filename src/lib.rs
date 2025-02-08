@@ -7,13 +7,14 @@
 //! Modules:
 //! - machine: Contains the core machine implementation and supporting components.
 
+// Re-export the machine modules for use in the library.
 pub mod machine;
-// pub mod languages;
+pub mod prolog;
 
+// Re-export the specific modules for use in the library.
 pub use machine::core;
 pub use machine::term;
 pub use machine::error_handling;
 pub use machine::arithmetic;
 pub use machine::instruction;
 
-// pub use languages::prolog;
