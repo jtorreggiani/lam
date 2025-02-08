@@ -1,4 +1,4 @@
-// tests/test_tail_call.rs
+// tests/test_machine/test_tail_call.rs
 
 use lam::machine::core::Machine;
 use lam::machine::instruction::Instruction;
@@ -7,9 +7,8 @@ use lam::machine::term::Term;
 /// Test for tail-call optimization.
 ///
 /// The program simulates a tail call as follows:
-/// - The main program allocates an environment and sets a local variable.
-/// - A TailCall instruction calls predicate "p".
-///   The tail call should first deallocate the current environment frame.
+/// - The main program allocates an environment frame and sets a local variable.
+/// - A TailCall instruction calls predicate "p". The tail call should first deallocate the current environment frame.
 /// - Predicate "p" (starting at address 4) simply puts 200 into register 0 and then proceeds.
 /// - The expected result is that register 0 contains 200 and the environment stack is empty.
 #[test]
@@ -38,6 +37,6 @@ fn test_tail_call() {
     
     // Verify that register 0 was set to 200 by predicate "p".
     assert_eq!(machine.registers[0], Some(Term::Const(200)));
-    // Verify that the environment stack is empty (tail call deallocated it).
+    // Verify that the environment stack is empty (since tail call deallocated the frame).
     assert_eq!(machine.environment_stack.len(), 0);
 }

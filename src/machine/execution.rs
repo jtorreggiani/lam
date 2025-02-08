@@ -313,33 +313,42 @@ impl Machine {
     }
 
     pub fn execute_tail_call(&mut self, predicate: String) -> Result<(), MachineError> {
-        let _ = self.environment_stack.pop();
+        // For a tail call, the current environment frame is no longer needed.
+        // Ensure there is an environment frame to pop.
+        if self.environment_stack.is_empty() {
+            return Err(MachineError::EnvironmentMissing);
+        }
+        self.environment_stack.pop();
+
+        // Tail call does not push a new control frame.
+        // Instead, we simply update the program counter.
         if let Some(builtin) = self.builtins.get(&predicate) {
             builtin(self)
         } else if let Some(clauses) = self.predicate_table.get(&predicate) {
-            if !clauses.is_empty() {
-                let mut alternatives = clauses.clone();
-                let jump_to = alternatives.remove(0);
-                let alternative_clauses = if alternatives.is_empty() { None } else { Some(alternatives) };
-                let cp = ChoicePoint {
+            if clauses.is_empty() {
+                return Err(MachineError::PredicateClauseNotFound(predicate));
+            }
+            let mut alternatives = clauses.clone();
+            let jump_to = alternatives.remove(0);
+            // Only if there are alternative clauses, we push a choice point.
+            if !alternatives.is_empty() {
+                let cp = crate::machine::choice_point::ChoicePoint {
                     saved_pc: self.pc,
                     saved_registers: self.registers.clone(),
                     saved_substitution: self.substitution.clone(),
                     saved_control_stack: self.control_stack.clone(),
-                    alternative_clauses,
+                    alternative_clauses: Some(alternatives),
                     uf_trail_len: self.uf.trail.len(),
                     call_level: self.control_stack.len(),
                 };
                 self.choice_stack.push(Box::new(cp));
-                self.pc = jump_to;
-                Ok(())
-            } else {
-                Err(MachineError::PredicateClauseNotFound(predicate))
             }
+            self.pc = jump_to;
+            Ok(())
         } else {
             Err(MachineError::PredicateNotFound(predicate))
         }
-    }
+    }    
 
     pub fn execute_assert_clause(&mut self, predicate: String, address: usize) -> Result<(), MachineError> {
         self.predicate_table.entry(predicate.clone()).or_insert_with(Vec::new).push(address);
