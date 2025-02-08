@@ -9,7 +9,7 @@
 
 > **A modern abstract machine for logic programming and automated reasoning in AI systems.**
 
-LAM is a cutting-edge, high-performance abstract machine written in Rust that serves as the core for next-generation logic programming languages. Designed from the ground up with AI-intensive applications in mind, LAM supports unification, backtracking, arithmetic evaluation, lambda calculus, and dynamic clause management. Its innovative architecture enables efficient automated reasoning—making it ideal for research, production AI systems, and advanced knowledge representation.
+LAM is high-performance abstract machine written in Rust that serves as the core for next-generation logic programming languages. Designed from the ground up with AI-intensive applications in mind, LAM supports unification, backtracking, arithmetic evaluation, lambda calculus, and dynamic clause management. Its innovative architecture enables efficient automated reasoning—making it ideal for research, production AI systems, and advanced knowledge representation.
 
 ---
 
@@ -230,8 +230,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Acknowledgments
 
-LAM draws inspiration from seminal works such as the Warren Abstract Machine (WAM) and leverages modern programming paradigms to serve the evolving needs of AI and logic programming. Special thanks to the open–source Rust community and all contributors who have helped shape LAM into a powerful tool for automated reasoning.
-
+LAM draws inspiration from seminal works such as the Warren Abstract Machine (WAM) and leverages modern programming paradigms to serve the evolving needs of AI and logic programming. Special thanks to the Rust community for their excellent tools and libraries that made this project possible.
 ---
 
 *Empower your logic, fuel your AI—build the future with LAM!*
