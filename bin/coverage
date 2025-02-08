@@ -1,3 +1,3 @@
-# cargo tarpaulin --out Html --output-dir ./coverage/report.html
-cargo tarpaulin --out Lcov --verbose
+cargo tarpaulin --out Html --output-dir ./coverage
+cargo tarpaulin --out Lcov --verbose --output-dir ./coverage
 npm run badge

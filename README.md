@@ -1,10 +1,8 @@
 # Logic Abstract Machine (LAM)
 
-[![CI](https://github.com/jtorreggiani/lam/actions/workflows/ci.yml/badge.svg)](https://github.com/jtorreggiani/lam/actions) ![Coverage](./coverage.svg)
-
-<!-- [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/jtorreggiani/lam/actions/workflows/ci.yml/badge.svg)](https://github.com/jtorreggiani/lam/actions) ![Coverage](./coverage/coverage.svg)
+[![License: BDS](https://img.shields.io/badge/License-BSD-yellow.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-stable-blue.svg)](https://www.rust-lang.org/)
-[![Coverage Status](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](./coverage/index.xml) -->
 
 
 > **A modern abstract machine for logic programming and automated reasoning in AI systems.**

@@ -2,7 +2,7 @@ const fs = require('fs');
 const lcovParse = require('lcov-parse');
 const { makeBadge } = require('badge-maker');
 
-lcovParse('lcov.info', function(err, data) {
+lcovParse('coverage/lcov.info', function(err, data) {
   if (err) {
     console.error(err);
     process.exit(1);
@@ -26,6 +26,6 @@ lcovParse('lcov.info', function(err, data) {
     color: color,
   };
   const svg = makeBadge(format);
-  fs.writeFileSync('coverage.svg', svg);
+  fs.writeFileSync('coverage/coverage.svg', svg);
   console.log('Coverage badge generated.');
 });
