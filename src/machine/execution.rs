@@ -351,9 +351,16 @@ impl Machine {
     }    
 
     pub fn execute_assert_clause(&mut self, predicate: String, address: usize) -> Result<(), MachineError> {
+        // Add the clause address to the predicate table.
         self.predicate_table.entry(predicate.clone()).or_insert_with(Vec::new).push(address);
+        // If the predicate is already indexed, update all keys in the index table.
+        if let Some(index_map) = self.index_table.get_mut(&predicate) {
+             for (_key, clause_list) in index_map.iter_mut() {
+                  clause_list.push(address);
+             }
+        }
         Ok(())
-    }
+    }    
 
     pub fn execute_retract_clause(&mut self, predicate: String, address: usize) -> Result<(), MachineError> {
         if let Some(clauses) = self.predicate_table.get_mut(&predicate) {

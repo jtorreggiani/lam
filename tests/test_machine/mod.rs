@@ -18,3 +18,4 @@ pub mod test_tail_call;
 pub mod test_term;
 pub mod test_unification_performance;
 pub mod test_unification;
+pub mod test_dynamic_clause_indexing;
