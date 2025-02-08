@@ -1,5 +1,9 @@
 // src/machine/unification.rs
 //! Union–find based unification for LAM with trailing for efficient backtracking.
+//!
+//! This version implements path compression to reduce the cost of repeated resolution.
+//! When a variable’s binding is resolved recursively, we update it (path compression)
+//! and record the previous binding on the trail so that backtracking can restore the state.
 
 use std::collections::HashMap;
 use crate::machine::term::Term;
@@ -28,12 +32,26 @@ impl UnionFind {
         }
     }
 
-    /// Recursively resolves a term to its current binding.
-    pub fn resolve(&self, term: &Term) -> Term {
+    /// Recursively resolves a term to its current binding using path compression.
+    ///
+    /// If the term is a variable and has a binding, the method recursively resolves that binding.
+    /// Then, if the current binding is not the fully resolved term, the binding is updated (path compression)
+    /// and the previous binding is recorded on the trail so that backtracking can restore it.
+    ///
+    /// **Note:** This method now requires a mutable reference to self.
+    pub fn resolve(&mut self, term: &Term) -> Term {
         match term {
             Term::Var(v) => {
-                if let Some(binding) = self.bindings.get(v) {
-                    self.resolve(binding)
+                // Clone the binding out of the HashMap to release the immutable borrow.
+                if let Some(binding) = self.bindings.get(v).cloned() {
+                    // Recursively resolve the binding.
+                    let resolved = self.resolve(&binding);
+                    // If the binding is not yet compressed, update it and record the old value.
+                    if binding != resolved {
+                        self.trail.push(TrailEntry { var: *v, old_binding: Some(binding) });
+                        self.bindings.insert(*v, resolved.clone());
+                    }
+                    resolved
                 } else {
                     term.clone()
                 }
@@ -42,7 +60,7 @@ impl UnionFind {
         }
     }
 
-    /// Binds the variable `var` to `term` (after resolution), recording the old binding on the trail.
+    /// Binds the variable `var` to `term` (after resolution), recording the previous binding on the trail.
     pub fn bind(&mut self, var: usize, term: &Term) -> Result<(), MachineError> {
         let resolved_term = self.resolve(term);
         // Avoid binding a variable to itself.
