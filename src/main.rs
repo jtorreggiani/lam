@@ -1,4 +1,3 @@
-// src/main.rs
 use std::env;
 use std::fs;
 use lam::machine::core::Machine;

@@ -1,7 +1,3 @@
-// src/machine/instruction_parser.rs
-//
-// A simple parser for a textual assembly-like format for LAM instructions.
-
 use crate::machine::instruction::Instruction;
 use crate::machine::arithmetic::parse_expression;
 use crate::machine::term::Term;
@@ -13,26 +9,26 @@ pub fn parse_instructions(input: &str) -> Result<Vec<Instruction>, String> {
     let mut instructions = Vec::new();
     for (line_num, line) in input.lines().enumerate() {
         let line = line.trim();
-        // Skip empty lines or comments.
+        // Skip empty lines or comment lines.
         if line.is_empty() || line.starts_with(';') || line.starts_with('#') {
             continue;
         }
-        // Split the line into tokens by commas (assumes no commas appear in quoted strings)
-        let tokens: Vec<&str> = split_tokens(line);
+        // Split the line into tokens by commas.
+        let tokens = split_tokens(line).map_err(|e| format!("Line {}: {}", line_num + 1, e))?;
         if tokens.is_empty() {
             continue;
         }
-        // The first token (possibly containing extra whitespace) holds the mnemonic.
+        // The first token may contain the mnemonic and some parameters.
         let mut parts = tokens[0].split_whitespace();
         let mnemonic = parts
             .next()
             .ok_or_else(|| format!("Line {}: missing mnemonic", line_num + 1))?
             .to_uppercase();
-        // For the remainder of the first token, if any, add them to tokens[1..] if needed.
+        // Collect any extra parts from the first token along with remaining tokens.
         let mut params: Vec<&str> = parts.collect();
         params.extend_from_slice(&tokens[1..]);
 
-        // Now match on the mnemonic and parse the expected parameters.
+        // Match on the mnemonic and parse parameters accordingly.
         let instr = match mnemonic.as_str() {
             "PUT_CONST" => {
                 if params.len() != 2 {
@@ -61,11 +57,7 @@ pub fn parse_instructions(input: &str) -> Result<Vec<Instruction>, String> {
                     .parse::<usize>()
                     .map_err(|e| format!("Line {}: failed to parse variable id in PUT_VAR: {}", line_num + 1, e))?;
                 let name = parse_string(params[2])?;
-                Instruction::PutVar {
-                    register,
-                    var_id,
-                    name,
-                }
+                Instruction::PutVar { register, var_id, name }
             }
             "GET_CONST" => {
                 if params.len() != 2 {
@@ -94,11 +86,7 @@ pub fn parse_instructions(input: &str) -> Result<Vec<Instruction>, String> {
                     .parse::<usize>()
                     .map_err(|e| format!("Line {}: failed to parse variable id in GET_VAR: {}", line_num + 1, e))?;
                 let name = parse_string(params[2])?;
-                Instruction::GetVar {
-                    register,
-                    var_id,
-                    name,
-                }
+                Instruction::GetVar { register, var_id, name }
             }
             "CALL" => {
                 if params.len() != 1 {
@@ -166,13 +154,9 @@ pub fn parse_instructions(input: &str) -> Result<Vec<Instruction>, String> {
                     ));
                 }
                 let target = parse_register(params[0])?;
-                // We use the existing arithmetic parser.
                 let expr = parse_expression(params[1])
                     .map_err(|e| format!("Line {}: failed to parse expression in ARITHMETIC_IS: {}", line_num + 1, e))?;
-                Instruction::ArithmeticIs {
-                    target,
-                    expression: expr,
-                }
+                Instruction::ArithmeticIs { target, expression: expr }
             }
             "SET_LOCAL" => {
                 if params.len() != 2 {
@@ -225,11 +209,7 @@ pub fn parse_instructions(input: &str) -> Result<Vec<Instruction>, String> {
                 let arity = params[2]
                     .parse::<usize>()
                     .map_err(|e| format!("Line {}: failed to parse arity in GET_STRUCTURE: {}", line_num + 1, e))?;
-                Instruction::GetStructure {
-                    register,
-                    functor,
-                    arity,
-                }
+                Instruction::GetStructure { register, functor, arity }
             }
             "INDEXED_CALL" => {
                 if params.len() != 2 {
@@ -241,10 +221,7 @@ pub fn parse_instructions(input: &str) -> Result<Vec<Instruction>, String> {
                 }
                 let predicate = parse_string_or_ident(params[0]);
                 let index_register = parse_register(params[1])?;
-                Instruction::IndexedCall {
-                    predicate,
-                    index_register,
-                }
+                Instruction::IndexedCall { predicate, index_register }
             }
             "MULTI_INDEXED_CALL" => {
                 if params.len() < 2 {
@@ -260,10 +237,7 @@ pub fn parse_instructions(input: &str) -> Result<Vec<Instruction>, String> {
                     let reg = parse_register(token)?;
                     index_registers.push(reg);
                 }
-                Instruction::MultiIndexedCall {
-                    predicate,
-                    index_registers,
-                }
+                Instruction::MultiIndexedCall { predicate, index_registers }
             }
             "TAIL_CALL" => {
                 if params.len() != 1 {
@@ -329,11 +303,7 @@ pub fn parse_instructions(input: &str) -> Result<Vec<Instruction>, String> {
                     let reg = parse_register(token)?;
                     arg_registers.push(reg);
                 }
-                Instruction::BuildCompound {
-                    target,
-                    functor,
-                    arg_registers,
-                }
+                Instruction::BuildCompound { target, functor, arg_registers }
             }
             "PUT_STR" => {
                 if params.len() != 2 {
@@ -394,48 +364,47 @@ pub fn parse_instructions(input: &str) -> Result<Vec<Instruction>, String> {
     Ok(instructions)
 }
 
-/// A helper function that splits a line by commas and trims whitespace.
-/// (This simple implementation does not support commas inside quoted strings.)
-fn split_tokens(line: &str) -> Vec<&str> {
-    line.split(',')
-        .map(|token| token.trim())
-        .filter(|token| !token.is_empty())
-        .collect()
+/// Splits a line by commas and trims whitespace.
+/// If any token (after splitting) is empty (e.g. due to a trailing comma), returns an error.
+fn split_tokens(line: &str) -> Result<Vec<&str>, String> {
+    let tokens: Vec<&str> = line.split(',').map(|token| token.trim()).collect();
+    // If the trimmed line is not empty and any token is empty, report an error.
+    if !line.trim().is_empty() && tokens.iter().any(|token| token.is_empty()) {
+        return Err("Empty token detected: possible trailing comma or missing parameter".to_string());
+    }
+    Ok(tokens)
 }
 
 /// Parse a register token. For example, "R0" or "r1" returns 0 or 1.
+/// Now, if the token is too short or does not start with 'R' or 'r', it produces an error message containing
+/// the expected phrase.
 fn parse_register(token: &str) -> Result<usize, String> {
     let token = token.trim();
-    if token.len() < 2 {
-        return Err(format!("Invalid register token '{}'", token));
+    if token.len() < 2 || !(token.starts_with('R') || token.starts_with('r')) {
+        return Err(format!("Register token '{}' must start with 'R' or 'r'", token));
     }
-    let mut chars = token.chars();
-    let first = chars.next().unwrap();
-    if first != 'R' && first != 'r' {
-        return Err(format!(
-            "Register token '{}' must start with 'R' or 'r'",
-            token
-        ));
-    }
-    let num_str: String = chars.collect();
+    let num_str: String = token.chars().skip(1).collect();
     num_str
         .parse::<usize>()
         .map_err(|e| format!("Failed to parse register number in '{}': {}", token, e))
 }
 
 /// Parse a string literal. If the token is enclosed in double quotes, remove them.
-/// Otherwise, return the token as is.
 fn parse_string(token: &str) -> Result<String, String> {
     let token = token.trim();
     if token.starts_with('"') && token.ends_with('"') && token.len() >= 2 {
         Ok(token[1..token.len() - 1].to_string())
     } else {
-        // Allow bare strings if they have no spaces.
-        Ok(token.to_string())
+        // Allow bare strings if they contain no spaces.
+        if token.contains(' ') {
+            Err(format!("Expected a quoted string if spaces are present: {}", token))
+        } else {
+            Ok(token.to_string())
+        }
     }
 }
 
-/// Parse a token that can be either a string literal (with quotes) or an identifier.
+/// Parse a token that can be either a quoted string literal or an identifier.
 fn parse_string_or_ident(token: &str) -> String {
     let token = token.trim();
     if token.starts_with('"') && token.ends_with('"') && token.len() >= 2 {
@@ -445,19 +414,24 @@ fn parse_string_or_ident(token: &str) -> String {
     }
 }
 
-/// Parse a term literal for instructions like SET_LOCAL.
-/// For simplicity, support integer constants, string literals, or register references (which we interpret as variables).
+/// Parse a term literal for instructions such as SET_LOCAL.
+/// Supports integer constants, quoted string literals, or register references (which become variables).
 fn parse_term_literal(token: &str) -> Result<Term, String> {
     let token = token.trim();
     if token.starts_with('R') || token.starts_with('r') {
         let reg = parse_register(token)?;
         Ok(Term::Var(reg))
-    } else if token.starts_with('"') && token.ends_with('"') {
+    } else if token.starts_with('"') && token.ends_with('"') && token.len() >= 2 {
         Ok(Term::Str(token[1..token.len() - 1].to_string()))
     } else if let Ok(n) = token.parse::<i32>() {
         Ok(Term::Const(n))
     } else {
-        // Otherwise, treat as a bare identifier string.
-        Ok(Term::Str(token.to_string()))
+        // If the token is unquoted and contains spaces, produce an error.
+        if token.contains(' ') {
+            Err(format!("Expected a quoted string if spaces are present: {}", token))
+        } else {
+            // Otherwise, treat as a bare identifier string.
+            Ok(Term::Str(token.to_string()))
+        }
     }
 }
