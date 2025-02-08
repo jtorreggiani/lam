@@ -9,6 +9,8 @@
 
 LAM aims to be a high-performance abstract machine written in Rust that serves as the core for next-generation logic programming languages. Designed from the ground up with AI-intensive applications in mind, LAM supports unification, backtracking, arithmetic evaluation, lambda calculus, and dynamic clause management. Its architecture enables efficient automated reasoning—making it ideal for research, production AI systems, and advanced knowledge representation.
 
+⚠️ **Note:** This project is a work in progress and is not yet production-ready. Contributions, feedback, and ideas are welcome!
+
 ---
 
 ## Table of Contents

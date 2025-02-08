@@ -1,6 +1,7 @@
 // benches/machine_bench.rs
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use lam::machine::{Instruction, Machine}; // Adjust the module path as needed.
+use lam::core::Machine;
+use lam::instruction::Instruction;
 use lam::term::Term;
 
 /// Builds a sample program for the machine.
