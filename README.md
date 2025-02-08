@@ -209,7 +209,7 @@ Then open the generated HTML report in your browser.
 
 ### Short-Term Goals
 
-- **Implement a basic prolog inperpter:**
+- **Implement a basic prolog interpreter:**
   Develop a Prolog interpreter using LAM as the core engine.
 - **Benchmark & Profiling:**
   Profile the LAM prolog implementation and compare to existing prolog interpreters to identify bottlenecks.
