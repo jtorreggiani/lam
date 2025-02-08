@@ -9,6 +9,7 @@ pub mod core;
 pub mod error_handling;
 pub mod execution;
 pub mod frame;
+pub mod instruction_parser;
 pub mod instruction;
 pub mod lambda;
 pub mod term;

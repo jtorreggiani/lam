@@ -37,14 +37,14 @@ LAM aims to be a high-performance abstract machine written in Rust that serves a
 
 ## Introduction
 
-The **Logic Abstract Machine (LAM)** is a comprehensive execution engine for logic programming languages. At its heart, LAM supports:
+The **Logic Abstract Machine (LAM)** aims to be comprehensive execution engine for logic programming languages. At its heart, LAM supports:
 
 - **Automated Reasoning:** Unification using a union–find algorithm with trailing for backtracking, ensuring efficient variable binding and rollback.
 - **Arithmetic Evaluation:** A robust parser and evaluator for arithmetic expressions with proper operator precedence.
 - **Lambda Calculus:** First-class support for lambda abstraction, beta reduction, and capture–avoiding substitution, paving the way for higher–order reasoning.
 - **Dynamic Clause Management:** Runtime assertion and retraction of clauses with indexing for fast clause lookup.
 
-LAM is not only a research tool but also a foundation for developing new logic programming languages that can serve as the backbone of modern AI systems. Its design emphasizes modularity, performance, and extensibility, making it well suited for both academic exploration and industrial-scale reasoning tasks.
+LAM right now is a research tool but seeks to become a foundation for developing new logic programming languages that can serve as the backbone of modern AI systems. Its design emphasizes modularity, performance, and extensibility, to be well suited for both academic exploration and industrial-scale reasoning tasks.
 
 ---
 
@@ -128,6 +128,16 @@ For an optimized release build:
 ```bash
 cargo build --release
 ```
+
+## Usage
+
+To run execute LAM instructions, use the following command:
+
+```bash
+cargo run examples/hello_world.lam
+```
+
+Please note the LAM instruction parser is still in development and may not be able to parse all instructions.
 
 ---
 
