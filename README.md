@@ -1,6 +1,6 @@
 # Logic Abstract Machine (LAM)
 
-[![Build Status](https://github.com/jtorreggiani/lam/actions/workflows/ci.yml/badge.svg)](https://github.com/jtorreggiani/lam/actions)
+[![CI](https://github.com/jtorreggiani/lam/actions/workflows/ci.yml/badge.svg)](https://github.com/jtorreggiani/lam/actions)
 
 <!-- [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-stable-blue.svg)](https://www.rust-lang.org/)
