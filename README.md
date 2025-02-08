@@ -229,6 +229,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ## Acknowledgments
 
 LAM draws inspiration from seminal works such as the Warren Abstract Machine (WAM) and leverages modern programming paradigms to serve the evolving needs of AI and logic programming. Special thanks to the Rust community for their excellent tools and libraries that made this project possible.
+
 ---
 
 *Empower your logic, fuel your AI—build the future with LAM!*
