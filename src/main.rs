@@ -6,7 +6,7 @@ use std::path::Path;
 use std::error::Error;
 
 // Import the Prolog compiler.
-use lam::prolog::interpreter::compile_prolog;
+use lam::prolog::compiler::compile_prolog;
 // Import the LAM instruction parser.
 use lam::machine::instruction_parser::parse_instructions;
 // Import the LAM machine.

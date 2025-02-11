@@ -17,6 +17,11 @@ use crate::machine::instruction::Instruction;
 use crate::prolog::ast::{Clause, Term};
 use crate::prolog::parser::{parse_program};
 
+/// Compiles a Prolog program (facts and rules) into a LAM program.
+/// Returns a tuple of (compiled instructions, predicate table).
+///
+/// The predicate table maps each predicate name (from the clause head) to a list of
+/// starting addresses for the corresponding code blocks.
 pub fn compile_prolog(program: &str) -> Result<(Vec<Instruction>, HashMap<String, Vec<usize>>), Box<dyn Error>> {
     let clauses = parse_program(program)
         .map_err(|e| Box::<dyn Error>::from(format!("Parse error: {:?}", e)))?;
@@ -26,7 +31,8 @@ pub fn compile_prolog(program: &str) -> Result<(Vec<Instruction>, HashMap<String
     
     for clause in clauses {
         let addr = instructions.len();
-        let (pred_name, mut code_block) = match clause {
+        // Remove the unnecessary 'mut' from code_block:
+        let (pred_name, code_block) = match clause {
             Clause::Fact { head } => {
                 let name = match head {
                     Term::Atom(s) => s,
@@ -44,8 +50,8 @@ pub fn compile_prolog(program: &str) -> Result<(Vec<Instruction>, HashMap<String
                 let mut block = Vec::new();
                 for goal in body {
                     match goal {
-                        // If the goal is write(...) with one argument,
-                        // emit PutStr then Call.
+                        // If the goal is a compound term with functor "write" and one argument,
+                        // emit a PutStr then a Call.
                         Term::Compound(ref functor, ref args) if functor == "write" && args.len() == 1 => {
                             if let Term::Atom(ref literal) = args[0] {
                                 block.push(Instruction::PutStr { register: 0, value: literal.clone() });
@@ -54,9 +60,11 @@ pub fn compile_prolog(program: &str) -> Result<(Vec<Instruction>, HashMap<String
                                 block.push(Instruction::Call { predicate: functor.clone() });
                             }
                         },
+                        // Otherwise, if it is a compound term, emit a Call using the functor.
                         Term::Compound(ref functor, _) => {
                             block.push(Instruction::Call { predicate: functor.clone() });
                         },
+                        // If the goal is an atom, simply emit a Call.
                         Term::Atom(s) => {
                             block.push(Instruction::Call { predicate: s });
                         },
