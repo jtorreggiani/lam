@@ -1,10 +1,5 @@
-; Example LAM program
-; This program sets register R0 to 42, stores a variable in R1,
-; checks that R0 contains 42, then calls the built-in "halt" predicate, and finally halts.
-
-PUT_CONST R0, 42
-PUT_VAR   R1, 0, "X"
-GET_CONST R0, 42
-CALL      "print"
+PUT_STR   R0, "Hello world"
+CALL      "write"
+CALL      "nl"
 CALL      "halt"
-HALT
+PROCEED

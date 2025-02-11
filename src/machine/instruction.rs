@@ -1,5 +1,6 @@
 // src/machine/instruction.rs
 //! Definitions of LAM instructions.
+use std::fmt;
 
 use crate::machine::term::Term;
 use crate::machine::arithmetic::Expression;
@@ -65,6 +66,63 @@ impl Instruction {
             Instruction::GetStr { register, value } => machine.execute_get_str(*register, value.clone()),
             Instruction::Move { src, dst } => machine.execute_move(*src, *dst),
             Instruction::Halt => Ok(()),
+        }
+    }
+}
+
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Instruction::PutConst { register, value } =>
+                write!(f, "PUT_CONST R{}, {}", register, value),
+            Instruction::PutVar { register, var_id, name } =>
+                write!(f, "PUT_VAR   R{}, {}, \"{}\"", register, var_id, name),
+            Instruction::GetConst { register, value } =>
+                write!(f, "GET_CONST R{}, {}", register, value),
+            Instruction::GetVar { register, var_id, name } =>
+                write!(f, "GET_VAR   R{}, {}, \"{}\"", register, var_id, name),
+            Instruction::Call { predicate } =>
+                write!(f, "CALL      \"{}\"", predicate),
+            Instruction::Proceed =>
+                write!(f, "PROCEED"),
+            Instruction::Choice { alternative } =>
+                write!(f, "CHOICE    {}", alternative),
+            Instruction::Allocate { n } =>
+                write!(f, "ALLOCATE  {}", n),
+            Instruction::Deallocate =>
+                write!(f, "DEALLOCATE"),
+            Instruction::ArithmeticIs { target, expression } =>
+                write!(f, "ARITHMETIC_IS R{}, {:?}", target, expression),
+            Instruction::SetLocal { index, value } =>
+                write!(f, "SET_LOCAL {} <- {:?}", index, value),
+            Instruction::GetLocal { index, register } =>
+                write!(f, "GET_LOCAL {} -> R{}", index, register),
+            Instruction::Fail =>
+                write!(f, "FAIL"),
+            Instruction::GetStructure { register, functor, arity } =>
+                write!(f, "GET_STRUCTURE R{}, {} / {}", register, functor, arity),
+            Instruction::IndexedCall { predicate, index_register } =>
+                write!(f, "INDEXED_CALL \"{}\", R{}", predicate, index_register),
+            Instruction::MultiIndexedCall { predicate, index_registers } =>
+                write!(f, "MULTI_INDEXED_CALL \"{}\", {:?}", predicate, index_registers),
+            Instruction::TailCall { predicate } =>
+                write!(f, "TAIL_CALL \"{}\"", predicate),
+            Instruction::AssertClause { predicate, address } =>
+                write!(f, "ASSERT_CLAUSE \"{}\", {}", predicate, address),
+            Instruction::RetractClause { predicate, address } =>
+                write!(f, "RETRACT_CLAUSE \"{}\", {}", predicate, address),
+            Instruction::Cut =>
+                write!(f, "CUT"),
+            Instruction::BuildCompound { target, functor, arg_registers } =>
+                write!(f, "BUILD_COMPOUND R{}, {} {:?}", target, functor, arg_registers),
+            Instruction::PutStr { register, value } =>
+                write!(f, "PUT_STR   R{}, \"{}\"", register, value),
+            Instruction::GetStr { register, value } =>
+                write!(f, "GET_STR   R{}, \"{}\"", register, value),
+            Instruction::Move { src, dst } =>
+                write!(f, "MOVE      R{} -> R{}", src, dst),
+            Instruction::Halt =>
+                write!(f, "HALT"),
         }
     }
 }
