@@ -1,1 +1,4 @@
-main :- write('Hello world'), nl, halt.
+main :-
+  write('Hello world'),
+  nl,
+  halt.

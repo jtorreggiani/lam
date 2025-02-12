@@ -11,9 +11,7 @@ use crate::machine::instruction::Instruction;
 use crate::machine::term::Term;
 use crate::machine::unification::UnionFind;
 
-///
 /// The built–in predicate function type.
-///
 pub type BuiltinPredicate = fn(&mut Machine) -> Result<(), MachineError>;
 
 /// The LAM abstract machine.
@@ -71,6 +69,8 @@ impl Machine {
         machine.builtins.insert("write".to_string(), Machine::builtin_write);
         machine.builtins.insert("nl".to_string(), Machine::builtin_nl);
         machine.builtins.insert("halt".to_string(), Machine::builtin_halt);
+        // Register the equality built-in for unification.
+        machine.builtins.insert("=".to_string(), Machine::builtin_eq);
         machine
     }
 
@@ -162,42 +162,7 @@ impl Machine {
         }
     }
 
-    /// Executes one instruction.
-    pub fn step(&mut self) -> Result<(), MachineError> {
-        let instr = self.code.get(self.pc)
-            .ok_or(MachineError::NoMoreInstructions)?
-            .clone();
-        self.pc += 1;
-        self.trace(&instr);
-        instr.execute(self)
-    }
-
-    /// Runs the machine until a Halt instruction or the end of the code.
-    /// 
-    /// **Changed:** If a unification failure occurs and there is no choice point available,
-    /// return the unification failure error directly rather than trying to backtrack.
-    pub fn run(&mut self) -> Result<(), MachineError> {
-        while self.pc < self.code.len() {
-            if let Some(Instruction::Halt) = self.code.get(self.pc) {
-                debug!("Halt: Stopping execution");
-                break;
-            }
-            match self.step() {
-                Ok(()) => {},
-                Err(MachineError::UnificationFailed(msg)) => {
-                    if self.choice_stack.is_empty() {
-                        return Err(MachineError::UnificationFailed(msg));
-                    } else {
-                        self.execute_fail()?;
-                    }
-                },
-                Err(e) => return Err(e),
-            }
-        }
-        Ok(())
-    }
-
-    /// Built-in predicate: halt.
+    /// Built–in predicate: halt.
     /// When called, it stops execution by setting the program counter
     /// to the end of the code.
     pub fn builtin_halt(&mut self) -> Result<(), MachineError> {
@@ -265,6 +230,53 @@ impl Machine {
     /// Built–in predicate: outputs a newline.
     pub fn builtin_nl(&mut self) -> Result<(), MachineError> {
         println!();
+        Ok(())
+    }
+
+    /// Built–in predicate for equality (unification).
+    /// Assumes that the left argument is in register 0 and the right argument is in register 1.
+    pub fn builtin_eq(&mut self) -> Result<(), MachineError> {
+        let term1 = self.registers.get(0)
+            .and_then(|opt| opt.clone())
+            .ok_or(MachineError::UninitializedRegister(0))?;
+        let term2 = self.registers.get(1)
+            .and_then(|opt| opt.clone())
+            .ok_or(MachineError::UninitializedRegister(1))?;
+        self.unify(&term1, &term2)
+    }
+
+    /// Executes one instruction.
+    pub fn step(&mut self) -> Result<(), MachineError> {
+        let instr = self.code.get(self.pc)
+            .ok_or(MachineError::NoMoreInstructions)?
+            .clone();
+        self.pc += 1;
+        self.trace(&instr);
+        instr.execute(self)
+    }
+
+    /// Runs the machine until a Halt instruction or the end of the code.
+    /// 
+    /// **Changed:** If a unification failure occurs and there is no choice point available,
+    /// return the unification failure error directly rather than trying to backtrack.
+    pub fn run(&mut self) -> Result<(), MachineError> {
+        while self.pc < self.code.len() {
+            if let Some(Instruction::Halt) = self.code.get(self.pc) {
+                debug!("Halt: Stopping execution");
+                break;
+            }
+            match self.step() {
+                Ok(()) => {},
+                Err(MachineError::UnificationFailed(msg)) => {
+                    if self.choice_stack.is_empty() {
+                        return Err(MachineError::UnificationFailed(msg));
+                    } else {
+                        self.execute_fail()?;
+                    }
+                },
+                Err(e) => return Err(e),
+            }
+        }
         Ok(())
     }
 }

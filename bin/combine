@@ -37,9 +37,9 @@ done
 
 echo "" >> docs/source.rs
 echo "// === Test Files ===" >> docs/source.rs
-find . -type f -name '*.md' | sort | while read -r file; do
-    add_file "$file"
-done
+
+add_file "README.md"
+add_file "SPECIFICATION.md"
 
 echo "Combined Rust source code (including tests) has been written to docs/source.rs"
 

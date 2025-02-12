@@ -1,16 +1,18 @@
-// src/prolog/interpreter.rs
+// src/prolog/compiler.rs
 //! A minimal Prolog compiler that compiles a Prolog file (facts and rules)
 //! into a LAM program. It parses all clauses (ignoring query lines) and
 //! compiles each clause into a code block. It also builds a predicate table.
 //!
 //! Facts are compiled into a single instruction (Proceed).
 //! Rules are compiled by processing each goal in the body:
-//!   - If the goal is a compound term with functor "write" and one argument
-//!     (a literal string), it emits a PutStr instruction to load the string
-//!     into register 0 and then a Call for "write".
+//!   - If the goal is a compound term with functor "=" and two arguments,
+//!     it compiles it as a unification goal by moving the left and right arguments
+//!     into registers 0 and 1 respectively, and then emitting a Call to the built–in "=".
+//!   - If the goal is a compound term with functor "write" and one argument,
+//!     it emits a PutStr instruction to load the string into register 0 and then a Call for "write".
 //!   - Otherwise, if the goal is a compound term or an atom, it emits a Call.
 //!
-//! Finally, a Halt is appended at the end of each clause's code block.
+//! Finally, a Proceed is appended at the end of each clause's code block.
 use std::collections::HashMap;
 use std::error::Error;
 use crate::machine::instruction::Instruction;
@@ -31,7 +33,6 @@ pub fn compile_prolog(program: &str) -> Result<(Vec<Instruction>, HashMap<String
     
     for clause in clauses {
         let addr = instructions.len();
-        // Remove the unnecessary 'mut' from code_block:
         let (pred_name, code_block) = match clause {
             Clause::Fact { head } => {
                 let name = match head {
@@ -50,8 +51,39 @@ pub fn compile_prolog(program: &str) -> Result<(Vec<Instruction>, HashMap<String
                 let mut block = Vec::new();
                 for goal in body {
                     match goal {
-                        // If the goal is a compound term with functor "write" and one argument,
-                        // emit a PutStr then a Call.
+                        // Handle unification goal: X = Y
+                        Term::Compound(ref functor, ref args) if functor == "=" && args.len() == 2 => {
+                            // Move left argument into register 0
+                            match args[0] {
+                                Term::Atom(ref s) => {
+                                    block.push(Instruction::PutStr { register: 0, value: s.clone() });
+                                },
+                                Term::Number(n) => {
+                                    block.push(Instruction::PutConst { register: 0, value: n });
+                                },
+                                Term::Var(ref s) => {
+                                    // Use var_id 0 for the left argument.
+                                    block.push(Instruction::PutVar { register: 0, var_id: 0, name: s.clone() });
+                                },
+                                _ => return Err(Box::from("Unsupported argument type for equality (left)")),
+                            }
+                            // Move right argument into register 1
+                            match args[1] {
+                                Term::Atom(ref s) => {
+                                    block.push(Instruction::PutStr { register: 1, value: s.clone() });
+                                },
+                                Term::Number(n) => {
+                                    block.push(Instruction::PutConst { register: 1, value: n });
+                                },
+                                Term::Var(ref s) => {
+                                    // Use var_id 1 for the right argument.
+                                    block.push(Instruction::PutVar { register: 1, var_id: 1, name: s.clone() });
+                                },
+                                _ => return Err(Box::from("Unsupported argument type for equality (right)")),
+                            }
+                            // Emit call to built-in "="
+                            block.push(Instruction::Call { predicate: "=".to_string() });
+                        },
                         Term::Compound(ref functor, ref args) if functor == "write" && args.len() == 1 => {
                             if let Term::Atom(ref literal) = args[0] {
                                 block.push(Instruction::PutStr { register: 0, value: literal.clone() });
@@ -60,11 +92,9 @@ pub fn compile_prolog(program: &str) -> Result<(Vec<Instruction>, HashMap<String
                                 block.push(Instruction::Call { predicate: functor.clone() });
                             }
                         },
-                        // Otherwise, if it is a compound term, emit a Call using the functor.
                         Term::Compound(ref functor, _) => {
                             block.push(Instruction::Call { predicate: functor.clone() });
                         },
-                        // If the goal is an atom, simply emit a Call.
                         Term::Atom(s) => {
                             block.push(Instruction::Call { predicate: s });
                         },
@@ -76,7 +106,7 @@ pub fn compile_prolog(program: &str) -> Result<(Vec<Instruction>, HashMap<String
             },
         };
         instructions.extend(code_block);
-        predicate_table.entry(pred_name).or_default().push(addr);
+        predicate_table.entry(pred_name).or_insert_with(Vec::new).push(addr);
     }
     
     Ok((instructions, predicate_table))

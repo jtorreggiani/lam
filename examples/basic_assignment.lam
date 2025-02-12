@@ -1,0 +1,7 @@
+PUT_VAR   R0, 0, "X"
+PUT_STR   R1, "Hello world"
+CALL      "="
+CALL      "write"
+CALL      "nl"
+CALL      "halt"
+PROCEED
