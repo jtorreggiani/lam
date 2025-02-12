@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Retrieve command-line arguments.
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        eprintln!("Usage: lam-tool <file> [--execute | -x]");
+        eprintln!("Usage: lamc <file> [--execute | -x]");
         std::process::exit(1);
     }
     let filename = &args[1];
@@ -45,16 +45,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             let (instructions, pred_table) = compile_prolog(&program)
                 .unwrap_or_else(|e| panic!("Failed to compile Prolog program: {}", e));
 
-            // For debugging, print the predicate table.
-            println!("Predicate Table:");
-            for (pred, addrs) in pred_table.iter() {
-                println!("  {} -> {:?}", pred, addrs);
-            }
-
             if execute_flag {
                 // If the execute flag is provided, execute the compiled LAM program.
-                println!("Executing compiled LAM program:");
                 let mut machine = Machine::new(10, instructions);
+                // *** FIX: Inject the compiled predicate table into the machine ***
+                machine.predicate_table = pred_table;
                 machine.run().unwrap_or_else(|e| {
                     eprintln!("Machine execution error: {:?}", e);
                     std::process::exit(1);

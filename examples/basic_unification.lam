@@ -1,0 +1,10 @@
+PUT_STR   R0, "john"
+PUT_STR   R1, "mary"
+PROCEED
+PUT_STR   R0, "john"
+PUT_VAR   R1, 1, "X"
+CALL      "parent"
+CALL      "write"
+CALL      "nl"
+CALL      "halt"
+PROCEED

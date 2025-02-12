@@ -4,6 +4,14 @@ version = "0.1.0"
 edition = "2021"
 exclude = ["tests/*", "Cargo.lock", "README.md", "SPECIFICATION.md"]
 
+[[bin]]
+name = "lamc"
+path = "src/main.rs"
+
+[[bench]]
+name = "machine_bench"
+harness = false
+
 [dependencies]
 log = "0.4"
 env_logger = "0.10"
@@ -14,8 +22,6 @@ pest_derive = "2.7.15"
 [dev-dependencies]
 criterion = "0.4"
 quickcheck = "1.0"
-
-[[bench]]
-name = "machine_bench"
-harness = false
-
+assert_cmd = "2.0.16"
+predicates = "3.1.3"
+tempfile = "3.16.0"
